@@ -8,6 +8,7 @@
 #include <mbgl/platform/default/headless_view.hpp>
 #include <mbgl/storage/default_file_source.hpp>
 #include <mbgl/util/io.hpp>
+#include <mbgl/util/run_loop.hpp>
 
 #include <future>
 #include <vector>
@@ -32,11 +33,16 @@ std::shared_ptr<SpriteImage> defaultMarker() {
 }
 
 PremultipliedImage render(Map& map) {
-    std::promise<PremultipliedImage> promise;
-    map.renderStill([&](std::exception_ptr, PremultipliedImage&& image) {
-        promise.set_value(std::move(image));
+    PremultipliedImage image;
+    map.renderStill([&](std::exception_ptr, PremultipliedImage&& image_) {
+        image = std::move(image_);
     });
-    return std::move(promise.get_future().get());
+
+    while (!image.size()) {
+        mbgl::util::RunLoop::Get()->runOnce();
+    }
+
+    return std::move(image);
 }
 
 void checkRendering(Map& map, const char * name) {
@@ -46,6 +52,8 @@ void checkRendering(Map& map, const char * name) {
 }
 
 TEST(Annotations, PointAnnotation) {
+    util::RunLoop loop;
+
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
     DefaultFileSource fileSource(nullptr, getFileSourceRoot());
@@ -59,6 +67,8 @@ TEST(Annotations, PointAnnotation) {
 }
 
 TEST(Annotations, LineAnnotation) {
+    util::RunLoop loop;
+
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
     DefaultFileSource fileSource(nullptr, getFileSourceRoot());
@@ -78,6 +88,8 @@ TEST(Annotations, LineAnnotation) {
 }
 
 TEST(Annotations, FillAnnotation) {
+    util::RunLoop loop;
+
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
     DefaultFileSource fileSource(nullptr, getFileSourceRoot());
@@ -96,6 +108,8 @@ TEST(Annotations, FillAnnotation) {
 }
 
 TEST(Annotations, StyleSourcedShapeAnnotation) {
+    util::RunLoop loop;
+
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
     DefaultFileSource fileSource(nullptr, getFileSourceRoot());
@@ -111,6 +125,8 @@ TEST(Annotations, StyleSourcedShapeAnnotation) {
 }
 
 TEST(Annotations, AddMultiple) {
+    util::RunLoop loop;
+
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
     DefaultFileSource fileSource(nullptr, getFileSourceRoot());
@@ -128,6 +144,8 @@ TEST(Annotations, AddMultiple) {
 }
 
 TEST(Annotations, NonImmediateAdd) {
+    util::RunLoop loop;
+
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
     DefaultFileSource fileSource(nullptr, getFileSourceRoot());
@@ -148,6 +166,8 @@ TEST(Annotations, NonImmediateAdd) {
 }
 
 TEST(Annotations, RemovePoint) {
+    util::RunLoop loop;
+
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
     DefaultFileSource fileSource(nullptr, getFileSourceRoot());
@@ -165,6 +185,8 @@ TEST(Annotations, RemovePoint) {
 }
 
 TEST(Annotations, RemoveShape) {
+    util::RunLoop loop;
+
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
     DefaultFileSource fileSource(nullptr, getFileSourceRoot());
@@ -187,6 +209,8 @@ TEST(Annotations, RemoveShape) {
 }
 
 TEST(Annotations, ImmediateRemoveShape) {
+    util::RunLoop loop;
+
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
     DefaultFileSource fileSource(nullptr, getFileSourceRoot());
@@ -199,6 +223,8 @@ TEST(Annotations, ImmediateRemoveShape) {
 }
 
 TEST(Annotations, SwitchStyle) {
+    util::RunLoop loop;
+
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
     DefaultFileSource fileSource(nullptr, getFileSourceRoot());
