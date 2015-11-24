@@ -9,6 +9,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, null_resettable) NSURL *styleURL;
 
+- (IBAction)reloadStyle:(id)sender;
+
 @property (nonatomic) CLLocationCoordinate2D centerCoordinate;
 
 - (void)setCenterCoordinate:(CLLocationCoordinate2D)coordinate animated:(BOOL)animated;

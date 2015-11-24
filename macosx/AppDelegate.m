@@ -15,7 +15,7 @@
 @interface AppDelegate () <NSSharingServicePickerDelegate>
 
 @property (weak) IBOutlet NSWindow *window;
-@property (strong) IBOutlet MGLMapView *mapView;
+@property (weak) IBOutlet MGLMapView *mapView;
 
 @property (weak) IBOutlet NSWindow *preferencesWindow;
 
@@ -23,7 +23,7 @@
 
 @implementation AppDelegate
 
-- (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
++ (void)load {
     // Set access token, unless MGLAccountManager already read it in from Info.plist.
     if (![MGLAccountManager accessToken]) {
         NSString *accessToken = [[NSProcessInfo processInfo] environment][@"MAPBOX_ACCESS_TOKEN"];
@@ -36,22 +36,27 @@
             // the token.
             accessToken = [[NSUserDefaults standardUserDefaults] stringForKey:@"MGLMapboxAccessToken"];
         }
-        if (!accessToken) {
-            NSAlert *alert = [[NSAlert alloc] init];
-            alert.messageText = @"Access token required";
-            alert.informativeText = @"To load Mapbox-hosted tiles and styles, enter your Mapbox access token in Preferences.";
-            [alert addButtonWithTitle:@"Open Preferences"];
-            [alert runModal];
-            [self showPreferences:nil];
+        if (accessToken) {
+            [MGLAccountManager setAccessToken:accessToken];
         }
-        
-        [MGLAccountManager setAccessToken:accessToken];
+    }
+}
+
+- (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
+    // Set access token, unless MGLAccountManager already read it in from Info.plist.
+    if (![MGLAccountManager accessToken]) {
+        NSAlert *alert = [[NSAlert alloc] init];
+        alert.messageText = @"Access token required";
+        alert.informativeText = @"To load Mapbox-hosted tiles and styles, enter your Mapbox access token in Preferences.";
+        [alert addButtonWithTitle:@"Open Preferences"];
+        [alert runModal];
+        [self showPreferences:nil];
     }
     
-    self.mapView = [[MGLMapView alloc] initWithFrame:self.window.contentView.bounds];
-    self.mapView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    [self.window.contentView addSubview:self.mapView];
-    [self.window makeFirstResponder:self.mapView];
+//    self.mapView = [[MGLMapView alloc] initWithFrame:self.window.contentView.bounds];
+//    self.mapView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+//    [self.window.contentView addSubview:self.mapView];
+//    [self.window makeFirstResponder:self.mapView];
 }
 
 - (void)applicationWillTerminate:(NSNotification *)aNotification {
@@ -143,13 +148,7 @@
 }
 
 - (IBAction)reload:(id)sender {
-    NSURL *styleURL = self.mapView.styleURL;
-    if ([styleURL isEqual:[MGLStyle streetsStyleURL]]) {
-        self.mapView.styleURL = [MGLStyle satelliteStyleURL];
-    } else {
-        self.mapView.styleURL = nil;
-    }
-    self.mapView.styleURL = styleURL;
+    [self.mapView reloadStyle:sender];
 }
 
 - (IBAction)toggleTileEdges:(id)sender {

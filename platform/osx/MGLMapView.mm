@@ -201,6 +201,12 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     _mbglMap->setStyleURL([[styleURL absoluteString] UTF8String]);
 }
 
+- (IBAction)reloadStyle:(__unused id)sender {
+    NSURL *styleURL = self.styleURL;
+    _mbglMap->setStyleURL("");
+    self.styleURL = styleURL;
+}
+
 - (void)viewWillMoveToWindow:(NSWindow *)newWindow {
     if (!_isDormant && !newWindow) {
         _isDormant = YES;

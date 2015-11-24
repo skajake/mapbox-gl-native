@@ -14,6 +14,7 @@
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
         <customObject id="Voe-Tx-rLC" customClass="AppDelegate">
             <connections>
+                <outlet property="mapView" destination="v1Z-oA-oHU" id="70S-xO-QIP"/>
                 <outlet property="preferencesWindow" destination="UWc-yQ-qda" id="Ota-aT-Mz2"/>
                 <outlet property="window" destination="QvC-M9-y7g" id="gIp-Ho-8D9"/>
             </connections>
@@ -490,6 +491,17 @@
             <view key="contentView" id="EiT-Mj-1SZ">
                 <rect key="frame" x="0.0" y="0.0" width="512" height="360"/>
                 <autoresizingMask key="autoresizingMask"/>
+                <subviews>
+                    <customView translatesAutoresizingMaskIntoConstraints="NO" id="v1Z-oA-oHU" customClass="MGLMapView">
+                        <rect key="frame" x="0.0" y="0.0" width="512" height="360"/>
+                    </customView>
+                </subviews>
+                <constraints>
+                    <constraint firstItem="v1Z-oA-oHU" firstAttribute="leading" secondItem="EiT-Mj-1SZ" secondAttribute="leading" id="Z3O-xb-fah"/>
+                    <constraint firstAttribute="trailing" secondItem="v1Z-oA-oHU" secondAttribute="trailing" id="oYw-bk-P2l"/>
+                    <constraint firstItem="v1Z-oA-oHU" firstAttribute="top" secondItem="EiT-Mj-1SZ" secondAttribute="top" id="r4Z-4m-bgA"/>
+                    <constraint firstAttribute="bottom" secondItem="v1Z-oA-oHU" secondAttribute="bottom" id="w3h-H1-baQ"/>
+                </constraints>
             </view>
             <toolbar key="toolbar" implicitIdentifier="A3AC6577-4712-4628-813D-113498171A84" allowsUserCustomization="NO" displayMode="iconOnly" sizeMode="regular" id="8nY-8B-Om5">
                 <allowedToolbarItems>

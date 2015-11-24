@@ -1,5 +1,7 @@
 #import "MGLAccountManager_Private.h"
 
+#import "MGLMapView.h"
+
 #import "NSString+MGLAdditions.h"
 
 @interface MGLAccountManager ()
@@ -13,6 +15,8 @@
 #pragma mark - Internal
 
 + (void)load {
+    [MGLMapView restorableStateKeyPaths];
+    
     // Read the initial configuration from Info.plist.
     NSString *accessToken = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MGLMapboxAccessToken"];
     if (accessToken.length) {
