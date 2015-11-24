@@ -15,6 +15,8 @@
 #import "NSException+MGLAdditions.h"
 #import "NSString+MGLAdditions.h"
 
+#import <QuartzCore/QuartzCore.h>
+
 class MBGLView;
 
 const NSTimeInterval MGLAnimationDuration = 0.3;
@@ -33,26 +35,21 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     return CLLocationCoordinate2DMake(latLng.latitude, latLng.longitude);
 }
 
-@interface MGLOpenGLView : NSOpenGLView
-
-@property (nonatomic, weak) MGLMapView *mapView;
-
-- (instancetype)initWithFrame:(NSRect)frameRect mapView:(MGLMapView *)mapView NS_DESIGNATED_INITIALIZER;
-
-- (void)pause;
-- (void)resume;
+@interface MGLOpenGLLayer : NSOpenGLLayer
 
 @end
 
 @interface MGLMapView ()
 
-- (CVReturn)getFrameForTime:(const CVTimeStamp *)outputTime;
+@property (nonatomic, readwrite) NSSegmentedControl *zoomControls;
+@property (nonatomic, readwrite) NSSlider *compass;
+
+@property (nonatomic, getter=isDormant) BOOL dormant;
 
 @end
 
 @implementation MGLMapView {
     mbgl::Map *_mbglMap;
-    MGLOpenGLView *_glView;
     MBGLView *_mbglView;
     std::shared_ptr<mbgl::SQLiteCache> _mbglFileCache;
     mbgl::DefaultFileSource *_mbglFileSource;
@@ -62,8 +59,6 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     double _scaleAtBeginningOfGesture;
     CLLocationDirection _directionAtBeginningOfGesture;
     CGFloat _pitchAtBeginningOfGesture;
-    
-    BOOL _isDormant;
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -95,10 +90,6 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 }
 
 - (void)commonInit {
-    _glView = [[MGLOpenGLView alloc] initWithFrame:self.bounds mapView:self];
-    _glView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    [self addSubview:_glView];
-    
     _mbglView = new MBGLView(self, [NSScreen mainScreen].backingScaleFactor);
     
     NSString *fileCachePath = @"";
@@ -111,6 +102,8 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     _mbglFileSource = new mbgl::DefaultFileSource(_mbglFileCache.get());
     
     _mbglMap = new mbgl::Map(*_mbglView, *_mbglFileSource, mbgl::MapMode::Continuous);
+    
+    self.layer = [MGLOpenGLLayer layer];
     
     // Observe for changes to the global access token (and find out the current one).
     [[MGLAccountManager sharedManager] addObserver:self
@@ -125,6 +118,13 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
         mbgl::NetworkStatus::Reachable();
     };
     [reachability startNotifier];
+    
+    _zoomControls = [[NSSegmentedControl alloc] initWithFrame:NSZeroRect];
+    _zoomControls.segmentCount = 2;
+    [_zoomControls setLabel:@"+" forSegment:0];
+    [_zoomControls setLabel:@"−" forSegment:1];
+    [_zoomControls sizeToFit];
+    [self addSubview:_zoomControls positioned:NSWindowAbove relativeTo:nil];
     
     self.acceptsTouchEvents = YES;
     _scrollEnabled = YES;
@@ -171,10 +171,6 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
         delete _mbglView;
         _mbglView = nullptr;
     }
-    
-    if ([[NSOpenGLContext currentContext] isEqual:_glView.openGLContext]) {
-        [NSOpenGLContext clearCurrentContext];
-    }
 }
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(__unused void *)context {
@@ -213,19 +209,21 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 }
 
 - (void)viewWillMoveToWindow:(NSWindow *)newWindow {
-    if (!_isDormant && !newWindow) {
-        _isDormant = YES;
+    if (!self.dormant && !newWindow) {
+        self.dormant = YES;
         _mbglMap->pause();
-        [_glView pause];
     }
 }
 
 - (void)viewDidMoveToWindow {
-    if (_isDormant && self.window) {
-        [_glView resume];
+    if (self.dormant && self.window) {
         _mbglMap->resume();
-        _isDormant = NO;
+        self.dormant = NO;
     }
+}
+
+- (BOOL)wantsLayer {
+    return YES;
 }
 
 - (void)setFrame:(NSRect)frame {
@@ -233,25 +231,18 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     _mbglMap->update(mbgl::Update::Dimensions);
 }
 
-- (CVReturn)getFrameForTime:(__unused const CVTimeStamp *)outputTime {
-    CGFloat zoomFactor   = _mbglMap->getMaxZoom() - _mbglMap->getMinZoom() + 1;
-    CGFloat cpuFactor    = (CGFloat)[NSProcessInfo processInfo].processorCount;
-    CGFloat memoryFactor = (CGFloat)[NSProcessInfo processInfo].physicalMemory / 1000 / 1000 / 1000;
-    CGFloat sizeFactor   = ((CGFloat)_mbglMap->getWidth()  / mbgl::util::tileSize) * ((CGFloat)_mbglMap->getHeight() / mbgl::util::tileSize);
-    
-    NSUInteger cacheSize = zoomFactor * cpuFactor * memoryFactor * sizeFactor * 0.5;
-    
-    _mbglMap->setSourceTileCacheSize(cacheSize);
-    
-    [self performSelectorOnMainThread:@selector(renderSync) withObject:nil waitUntilDone:YES];
-    
-    return kCVReturnSuccess;
-}
-
 - (void)renderSync {
-    if (!_isDormant) {
+    if (!self.dormant) {
+        CGFloat zoomFactor   = _mbglMap->getMaxZoom() - _mbglMap->getMinZoom() + 1;
+        CGFloat cpuFactor    = (CGFloat)[NSProcessInfo processInfo].processorCount;
+        CGFloat memoryFactor = (CGFloat)[NSProcessInfo processInfo].physicalMemory / 1000 / 1000 / 1000;
+        CGFloat sizeFactor   = ((CGFloat)_mbglMap->getWidth() / mbgl::util::tileSize) * ((CGFloat)_mbglMap->getHeight() / mbgl::util::tileSize);
+        
+        NSUInteger cacheSize = zoomFactor * cpuFactor * memoryFactor * sizeFactor * 0.5;
+        
+        _mbglMap->setSourceTileCacheSize(cacheSize);
         _mbglMap->renderSync();
-        glFlush();
+//        glFlush();
         
 //        [self updateUserLocationAnnotationView];
     }
@@ -260,7 +251,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 - (void)invalidate {
     MGLAssertIsMainThread();
     
-    _glView.needsDisplay = YES;
+    [self.layer setNeedsDisplay];
 }
 
 - (void)notifyMapChange:(mbgl::MapChange)change {
@@ -605,7 +596,7 @@ public:
     }
     
     std::array<uint16_t, 2> getFramebufferSize() const override {
-        NSRect bounds = [nativeView->_glView convertRectToBacking:nativeView->_glView.bounds];
+        NSRect bounds = [nativeView convertRectToBacking:nativeView.bounds];
         return {{ static_cast<uint16_t>(bounds.size.width),
             static_cast<uint16_t>(bounds.size.height) }};
     }
@@ -618,7 +609,8 @@ public:
     }
     
     void activate() override {
-        [nativeView->_glView.openGLContext makeCurrentContext];
+        MGLOpenGLLayer *layer = (MGLOpenGLLayer *)nativeView.layer;
+        [layer.openGLContext makeCurrentContext];
     }
     
     void deactivate() override {
@@ -642,11 +634,21 @@ private:
 
 @end
 
-@implementation MGLOpenGLView {
-    CVDisplayLinkRef _displayLink;
+@implementation MGLOpenGLLayer
+
+- (MGLMapView *)mapView {
+    return (MGLMapView *)super.view;
 }
 
-- (instancetype)initWithFrame:(NSRect)frameRect mapView:(MGLMapView *)mapView {
+- (BOOL)isAsynchronous {
+    return YES;
+}
+
+- (CGRect)frame {
+    return self.view.bounds;
+}
+
+- (NSOpenGLPixelFormat *)openGLPixelFormatForDisplayMask:(uint32_t)mask {
     NSOpenGLPixelFormatAttribute pfas[] = {
         NSOpenGLPFAAccelerated,
         NSOpenGLPFAClosestPolicy,
@@ -655,24 +657,13 @@ private:
         NSOpenGLPFAAlphaSize, 8,
         NSOpenGLPFADepthSize, 16,
         NSOpenGLPFAStencilSize, 8,
-        NULL
+        NSOpenGLPFAScreenMask, mask,
+        0
     };
-    NSOpenGLPixelFormat *format = [[NSOpenGLPixelFormat alloc] initWithAttributes:pfas];
-    if (format && (self = [super initWithFrame:frameRect pixelFormat:format])) {
-        _mapView = mapView;
-        [self setWantsBestResolutionOpenGLSurface:YES];
-//        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
-    return self;
+    return [[NSOpenGLPixelFormat alloc] initWithAttributes:pfas];
 }
 
-- (void)dealloc {
-    CVDisplayLinkRelease(_displayLink);
-}
-
-- (void)prepareOpenGL {
-    [super prepareOpenGL];
-    
+- (NSOpenGLContext *)openGLContextForPixelFormat:(NSOpenGLPixelFormat *)pixelFormat {
     mbgl::gl::InitializeExtensions([](const char *name) {
         static CFBundleRef framework = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.opengl"));
         if (!framework) {
@@ -686,28 +677,16 @@ private:
         return reinterpret_cast<mbgl::gl::glProc>(symbol);
     });
     
-    // https://developer.apple.com/library/mac/documentation/GraphicsImaging/Conceptual/OpenGL-MacProgGuide/opengl_designstrategies/opengl_designstrategies.html#//apple_ref/doc/uid/TP40001987-CH2-SW12
-    GLint swapInt = 1;
-    [self.openGLContext setValues:&swapInt forParameter:NSOpenGLCPSwapInterval];
-    CVDisplayLinkCreateWithActiveCGDisplays(&_displayLink);
-    CVDisplayLinkSetOutputCallback(_displayLink, &MGLDisplayLinkCallback, (__bridge void *)self);
-    CGLContextObj cglContext = self.openGLContext.CGLContextObj;
-    CGLPixelFormatObj cglPixelFormat = self.pixelFormat.CGLPixelFormatObj;
-    CVDisplayLinkSetCurrentCGDisplayFromOpenGLContext(_displayLink, cglContext, cglPixelFormat);
-    CVDisplayLinkStart(_displayLink);
+    return [super openGLContextForPixelFormat:pixelFormat];
 }
 
-- (void)pause {
-    CVDisplayLinkStop(_displayLink);
+- (BOOL)canDrawInOpenGLContext:(__unused NSOpenGLContext *)context pixelFormat:(__unused NSOpenGLPixelFormat *)pixelFormat forLayerTime:(__unused CFTimeInterval)t displayTime:(__unused const CVTimeStamp *)ts {
+    return !self.mapView.dormant;
 }
 
-- (void)resume {
-    CVDisplayLinkStart(_displayLink);
-}
-
-static CVReturn MGLDisplayLinkCallback(__unused CVDisplayLinkRef displayLink, __unused const CVTimeStamp *now, const CVTimeStamp *outputTime, __unused CVOptionFlags flagsIn, __unused CVOptionFlags *flagsOut, void *displayLinkContext) {
-    MGLOpenGLView *glView = (__bridge MGLOpenGLView *)displayLinkContext;
-    return [glView.mapView getFrameForTime:outputTime];
+- (void)drawInOpenGLContext:(NSOpenGLContext *)context pixelFormat:(NSOpenGLPixelFormat *)pixelFormat forLayerTime:(CFTimeInterval)t displayTime:(const CVTimeStamp *)ts {
+    [self.mapView renderSync];
+    [super drawInOpenGLContext:context pixelFormat:pixelFormat forLayerTime:t displayTime:ts];
 }
 
 @end

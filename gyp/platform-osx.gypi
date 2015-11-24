@@ -52,6 +52,7 @@
           '-framework OpenGL',
           '-framework ApplicationServices',
           '-framework SystemConfiguration',
+          '-framework QuartzCore',
         ],
       },
 

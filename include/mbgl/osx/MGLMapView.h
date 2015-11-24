@@ -11,6 +11,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (IBAction)reloadStyle:(id)sender;
 
+@property (nonatomic, readonly) NSSegmentedControl *zoomControls;
+@property (nonatomic, readonly) NSSlider *compass;
+
 @property (nonatomic) CLLocationCoordinate2D centerCoordinate;
 
 - (void)setCenterCoordinate:(CLLocationCoordinate2D)coordinate animated:(BOOL)animated;
