@@ -36,9 +36,7 @@
             // the token.
             accessToken = [[NSUserDefaults standardUserDefaults] stringForKey:@"MGLMapboxAccessToken"];
         }
-        if (accessToken) {
-            [MGLAccountManager setAccessToken:accessToken];
-        }
+        [MGLAccountManager setAccessToken:accessToken];
     }
 }
 
@@ -52,14 +50,6 @@
         [alert runModal];
         [self showPreferences:nil];
     }
-    
-//    self.mapView = [[MGLMapView alloc] initWithFrame:self.window.contentView.bounds];
-//    self.mapView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-//    [self.window.contentView addSubview:self.mapView];
-//    [self.window makeFirstResponder:self.mapView];
-}
-
-- (void)applicationWillTerminate:(NSNotification *)aNotification {
 }
 
 - (IBAction)showShareMenu:(id)sender {
