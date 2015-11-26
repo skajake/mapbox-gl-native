@@ -19,6 +19,7 @@ class MBGLView;
 
 const NSTimeInterval MGLAnimationDuration = 0.3;
 const CGFloat MGLKeyPanningIncrement = 150;
+const CLLocationDegrees MGLKeyRotationIncrement = 25;
 
 std::chrono::steady_clock::duration MGLDurationInSeconds(float duration) {
     return std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<float, std::chrono::seconds::period>(duration));
@@ -324,6 +325,11 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     _mbglMap->setZoom(zoomLevel, MGLDurationInSeconds(animated ? MGLAnimationDuration : 0));
 }
 
+- (void)scaleBy:(double)scaleFactor atPoint:(NSPoint)point animated:(BOOL)animated {
+    mbgl::PrecisionPoint center(point.x, point.y);
+    _mbglMap->scaleBy(scaleFactor, center, MGLDurationInSeconds(animated ? MGLAnimationDuration : 0));
+}
+
 - (double)maximumZoomLevel {
     return _mbglMap->getMaxZoom();
 }
@@ -342,6 +348,11 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 
 - (void)setDirection:(CLLocationDirection)direction animated:(BOOL)animated {
     _mbglMap->setBearing(direction, MGLDurationInSeconds(animated ? MGLAnimationDuration : 0));
+}
+
+- (void)offsetDirectionBy:(CLLocationDegrees)delta animated:(BOOL)animated {
+    _mbglMap->cancelTransitions();
+    _mbglMap->setBearing(_mbglMap->getBearing() + delta, MGLDurationInSeconds(animated ? MGLAnimationDuration : 0));
 }
 
 - (BOOL)acceptsFirstResponder {
@@ -366,8 +377,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
             _scaleAtBeginningOfGesture = _mbglMap->getScale();
         } else if (gestureRecognizer.state == NSGestureRecognizerStateChanged) {
             CGFloat newZoomLevel = log2f(_scaleAtBeginningOfGesture) - delta.y / 75;
-            mbgl::PrecisionPoint center(startPoint.x, startPoint.y);
-            _mbglMap->scaleBy(powf(2, newZoomLevel) / _mbglMap->getScale(), center);
+            [self scaleBy:powf(2, newZoomLevel) / _mbglMap->getScale() atPoint:startPoint animated:NO];
         } else if (gestureRecognizer.state == NSGestureRecognizerStateEnded
                    || gestureRecognizer.state == NSGestureRecognizerStateCancelled) {
             _mbglMap->setGestureInProgress(false);
@@ -448,8 +458,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     _mbglMap->cancelTransitions();
     
     NSPoint gesturePoint = [gestureRecognizer locationInView:self];
-    mbgl::PrecisionPoint center(gesturePoint.x, self.bounds.size.height - gesturePoint.y);
-    _mbglMap->scaleBy(0.5, center, MGLDurationInSeconds(MGLAnimationDuration));
+    [self scaleBy:0.5 atPoint:NSMakePoint(gesturePoint.x, self.bounds.size.height - gesturePoint.y) animated:YES];
 }
 
 - (void)handleDoubleClickGesture:(NSClickGestureRecognizer *)gestureRecognizer {
@@ -460,8 +469,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     _mbglMap->cancelTransitions();
     
     NSPoint gesturePoint = [gestureRecognizer locationInView:self];
-    mbgl::PrecisionPoint center(gesturePoint.x, self.bounds.size.height - gesturePoint.y);
-    _mbglMap->scaleBy(2, center, MGLDurationInSeconds(MGLAnimationDuration));
+    [self scaleBy:2 atPoint:NSMakePoint(gesturePoint.x, self.bounds.size.height - gesturePoint.y) animated:YES];
 }
 
 - (void)handleRotationGesture:(NSRotationGestureRecognizer *)gestureRecognizer {
@@ -538,6 +546,30 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 
 - (IBAction)moveRight:(__unused id)sender {
     [self offsetCenterCoordinateBy:NSMakePoint(-MGLKeyPanningIncrement, 0) animated:YES];
+}
+
+- (IBAction)moveToBeginningOfParagraph:(__unused id)sender {
+    if (self.zoomEnabled) {
+        [self scaleBy:2 atPoint:NSZeroPoint animated:YES];
+    }
+}
+
+- (IBAction)moveToEndOfParagraph:(__unused id)sender {
+    if (self.zoomEnabled) {
+        [self scaleBy:0.5 atPoint:NSZeroPoint animated:YES];
+    }
+}
+
+- (IBAction)moveWordLeft:(__unused id)sender {
+    if (self.rotateEnabled) {
+        [self offsetDirectionBy:MGLKeyRotationIncrement animated:YES];
+    }
+}
+
+- (IBAction)moveWordRight:(__unused id)sender {
+    if (self.rotateEnabled) {
+        [self offsetDirectionBy:-MGLKeyRotationIncrement animated:YES];
+    }
 }
 
 - (BOOL)showsTileEdges {
