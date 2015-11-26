@@ -135,6 +135,10 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     panGestureRecognizer.delaysKeyEvents = YES;
     [self addGestureRecognizer:panGestureRecognizer];
     
+    NSClickGestureRecognizer *secondaryClickGestureRecognizer = [[NSClickGestureRecognizer alloc] initWithTarget:self action:@selector(handleSecondaryClickGesture:)];
+    secondaryClickGestureRecognizer.buttonMask = 0x2;
+    [self addGestureRecognizer:secondaryClickGestureRecognizer];
+    
     NSClickGestureRecognizer *doubleClickGestureRecognizer = [[NSClickGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleClickGesture:)];
     doubleClickGestureRecognizer.numberOfClicksRequired = 2;
     [self addGestureRecognizer:doubleClickGestureRecognizer];
@@ -436,6 +440,18 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     }
 }
 
+- (void)handleSecondaryClickGesture:(NSClickGestureRecognizer *)gestureRecognizer {
+    if (!self.zoomEnabled) {
+        return;
+    }
+    
+    _mbglMap->cancelTransitions();
+    
+    NSPoint gesturePoint = [gestureRecognizer locationInView:self];
+    mbgl::PrecisionPoint center(gesturePoint.x, self.bounds.size.height - gesturePoint.y);
+    _mbglMap->scaleBy(0.5, center, MGLDurationInSeconds(MGLAnimationDuration));
+}
+
 - (void)handleDoubleClickGesture:(NSClickGestureRecognizer *)gestureRecognizer {
     if (!self.zoomEnabled) {
         return;
@@ -474,23 +490,29 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 
 - (void)scrollWheel:(NSEvent *)event {
     // https://developer.apple.com/library/mac/releasenotes/AppKit/RN-AppKitOlderNotes/#10_7Dragging
-    if (!self.scrollEnabled
-        || (event.phase == NSEventPhaseNone && event.momentumPhase == NSEventPhaseNone)
-        || _magnificationGestureRecognizer.state != NSGestureRecognizerStatePossible
-        || _rotationGestureRecognizer.state != NSGestureRecognizerStatePossible) {
-        return;
-    }
-    
-    _mbglMap->cancelTransitions();
-    
-    CGFloat x = event.scrollingDeltaX;
-    CGFloat y = event.scrollingDeltaY;
-    if (x || y) {
-        [self offsetCenterCoordinateBy:NSMakePoint(x, y) animated:NO];
-    }
-    
-    if (event.momentumPhase != NSEventPhaseNone) {
-        [self offsetCenterCoordinateBy:NSMakePoint(x, y) animated:NO];
+    if (event.phase == NSEventPhaseNone && event.momentumPhase == NSEventPhaseNone) {
+        // A traditional, vertical scroll wheel zooms instead of panning.
+        if (self.zoomEnabled && std::abs(event.scrollingDeltaX) < std::abs(event.scrollingDeltaY)) {
+            _mbglMap->cancelTransitions();
+            
+            NSPoint gesturePoint = [self convertPoint:event.locationInWindow fromView:nil];
+            mbgl::PrecisionPoint center(gesturePoint.x, self.bounds.size.height - gesturePoint.y);
+            _mbglMap->scaleBy(exp2(event.scrollingDeltaY / 20), center);
+        }
+    } else if (self.scrollEnabled
+               && _magnificationGestureRecognizer.state == NSGestureRecognizerStatePossible
+               && _rotationGestureRecognizer.state == NSGestureRecognizerStatePossible) {
+        _mbglMap->cancelTransitions();
+        
+        CGFloat x = event.scrollingDeltaX;
+        CGFloat y = event.scrollingDeltaY;
+        if (x || y) {
+            [self offsetCenterCoordinateBy:NSMakePoint(x, y) animated:NO];
+        }
+        
+        if (event.momentumPhase != NSEventPhaseNone) {
+            [self offsetCenterCoordinateBy:NSMakePoint(x, y) animated:NO];
+        }
     }
 }
 
