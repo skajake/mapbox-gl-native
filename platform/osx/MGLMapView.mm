@@ -490,7 +490,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     }
     
     if (event.momentumPhase != NSEventPhaseNone) {
-        [self offsetCenterCoordinateBy:NSMakePoint(x, y) animated:YES];
+        [self offsetCenterCoordinateBy:NSMakePoint(x, y) animated:NO];
     }
 }
 
