@@ -2,6 +2,7 @@
 
 #import "MGLMapView.h"
 
+#import "NSBundle+MGLAdditions.h"
 #import "NSString+MGLAdditions.h"
 
 @interface MGLAccountManager ()
@@ -15,6 +16,9 @@
 #pragma mark - Internal
 
 + (void)load {
+    mgl_linkBundleCategory();
+    mgl_linkStringCategory();
+    
     [MGLMapView restorableStateKeyPaths];
     
     // Read the initial configuration from Info.plist.
@@ -27,8 +31,6 @@
 // Can be called from any thread.
 //
 + (instancetype)sharedManager {
-    mgl_linkStringCategory();
-    
     static dispatch_once_t onceToken;
     static MGLAccountManager *_sharedManager;
     void (^setupBlock)() = ^{

@@ -8,9 +8,7 @@
 
 #import "AppDelegate.h"
 
-#import <mbgl/osx/MGLAccountManager.h>
-#import <mbgl/osx/MGLMapView.h>
-#import <mbgl/osx/MGLStyle.h>
+#import <mbgl/osx/Mapbox.h>
 
 @interface AppDelegate () <NSSharingServicePickerDelegate>
 

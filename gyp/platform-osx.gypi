@@ -20,6 +20,7 @@
         '../platform/darwin/NSException+MGLAdditions.h',
         '../platform/darwin/NSString+MGLAdditions.h',
         '../platform/darwin/NSString+MGLAdditions.m',
+        '../include/mbgl/osx/Mapbox.h',
         '../include/mbgl/osx/MGLAccountManager.h',
         '../platform/osx/MGLAccountManager_Private.h',
         '../platform/osx/MGLAccountManager.m',
@@ -29,6 +30,9 @@
         '../platform/osx/MGLTypes.m',
         '../include/mbgl/osx/MGLStyle.h',
         '../platform/osx/MGLStyle.mm',
+        '../platform/osx/NSBundle+MGLAdditions.h',
+        '../platform/osx/NSBundle+MGLAdditions.m',
+        '../platform/osx/resources/',
       ],
 
       'variables': {
@@ -58,7 +62,6 @@
 
       'include_dirs': [
         '../include',
-#        '../src',
       ],
 
       'xcode_settings': {
@@ -78,6 +81,9 @@
       'direct_dependent_settings': {
         'include_dirs': [
           '../include',
+        ],
+        'mac_bundle_resources': [
+          '<!@(find ../platform/osx/resources -type f \! -name "README")',
         ],
       },
     },

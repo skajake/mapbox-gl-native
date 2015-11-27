@@ -12,6 +12,7 @@
 #import <mbgl/util/math.hpp>
 #import <mbgl/util/constants.hpp>
 
+#import "NSBundle+MGLAdditions.h"
 #import "NSException+MGLAdditions.h"
 #import "NSString+MGLAdditions.h"
 
@@ -19,11 +20,19 @@
 
 class MBGLView;
 
-const CGFloat MGLOrnamentPadding = 20;
+const CGFloat MGLOrnamentPadding = 12;
 
 const NSTimeInterval MGLAnimationDuration = 0.3;
 const CGFloat MGLKeyPanningIncrement = 150;
 const CLLocationDegrees MGLKeyRotationIncrement = 25;
+
+struct MGLAttribution {
+    NSString *title;
+    NSString *urlString;
+} MGLAttributions[] = {
+    { @"Mapbox", @"https://www.mapbox.com/about/maps/" },
+    { @"OpenStreetMap", @"http://www.openstreetmap.org/about/" },
+};
 
 std::chrono::steady_clock::duration MGLDurationInSeconds(float duration) {
     return std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<float, std::chrono::seconds::period>(duration));
@@ -44,7 +53,9 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 @interface MGLMapView ()
 
 @property (nonatomic, readwrite) NSSegmentedControl *zoomControls;
-@property (nonatomic, readwrite) NSSlider *compass;
+//@property (nonatomic, readwrite) NSSlider *compass;
+@property (nonatomic, readwrite) NSImageView *logoView;
+@property (nonatomic, readwrite) NSView *attributionView;
 
 @property (nonatomic, getter=isDormant) BOOL dormant;
 
@@ -123,6 +134,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     
     _zoomControls = [[NSSegmentedControl alloc] initWithFrame:NSZeroRect];
     _zoomControls.wantsLayer = YES;
+    _zoomControls.layer.opacity = 0.9;
     _zoomControls.trackingMode = NSSegmentSwitchTrackingMomentary;
     _zoomControls.continuous = YES;
     _zoomControls.segmentCount = 2;
@@ -136,11 +148,32 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     _zoomControls.action = @selector(zoomInOrOut:);
     _zoomControls.controlSize = NSRegularControlSize;
     [_zoomControls sizeToFit];
-    NSSize zoomControlsSize = _zoomControls.frame.size;
-    _zoomControls.frame = NSMakeRect(self.bounds.size.width - zoomControlsSize.width - MGLOrnamentPadding, MGLOrnamentPadding, zoomControlsSize.width, zoomControlsSize.height);
-    _zoomControls.autoresizingMask = NSViewMinXMargin | NSViewMaxYMargin;
-    _zoomControls.translatesAutoresizingMaskIntoConstraints = YES;
-    [self addSubview:_zoomControls positioned:NSWindowAbove relativeTo:nil];
+    _zoomControls.translatesAutoresizingMaskIntoConstraints = NO;
+    [self addSubview:_zoomControls];
+    
+    _logoView = [[NSImageView alloc] initWithFrame:NSZeroRect];
+    _logoView.wantsLayer = YES;
+    NSImage *logoImage = [[NSImage alloc] initWithContentsOfFile:
+                          [[NSBundle mgl_resourceBundle] pathForResource:@"mapbox" ofType:@"pdf"]];
+    logoImage.alignmentRect = NSInsetRect(logoImage.alignmentRect, 3, 3);
+    _logoView.image = logoImage;
+    _logoView.translatesAutoresizingMaskIntoConstraints = NO;
+    _logoView.accessibilityTitle = @"Mapbox";
+    [self addSubview:_logoView];
+    
+    _attributionView = [[NSView alloc] initWithFrame:NSZeroRect];
+    _attributionView.wantsLayer = YES;
+    _attributionView.layer.opacity = 0.6;
+    CIFilter *attributionBlurFilter = [CIFilter filterWithName:@"CIGaussianBlur"];
+    [attributionBlurFilter setDefaults];
+    CIFilter *attributionColorFilter = [CIFilter filterWithName:@"CIColorControls"];
+    [attributionColorFilter setDefaults];
+    [attributionColorFilter setValue:@(0.1) forKey:kCIInputBrightnessKey];
+    _attributionView.backgroundFilters = @[attributionColorFilter, attributionBlurFilter];
+    _attributionView.layer.cornerRadius = 4;
+    _attributionView.translatesAutoresizingMaskIntoConstraints = NO;
+    [self addSubview:_attributionView];
+    [self updateAttributionView];
     
     self.acceptsTouchEvents = YES;
     _scrollEnabled = YES;
@@ -171,6 +204,53 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     options.center = mbgl::LatLng(0, 0);
     options.zoom = _mbglMap->getMinZoom();
     _mbglMap->jumpTo(options);
+}
+
+- (void)updateAttributionView {
+    self.attributionView.subviews = @[];
+    
+    for (NSUInteger i = 0; i < sizeof(MGLAttributions) / sizeof(MGLAttributions[0]); i++) {
+        NSButton *button = [[NSButton alloc] initWithFrame:NSZeroRect];
+        button.wantsLayer = YES;
+        button.bordered = NO;
+        button.bezelStyle = NSRegularSquareBezelStyle;
+        button.controlSize = NSMiniControlSize;
+        NSMutableAttributedString *title = [[NSMutableAttributedString alloc] initWithString:@"© "
+                                                                                  attributes:@{
+            NSFontAttributeName: [NSFont systemFontOfSize:[NSFont systemFontSizeForControlSize:NSMiniControlSize]],
+        }];
+        [title appendAttributedString:[[NSAttributedString alloc] initWithString:MGLAttributions[i].title
+                                                                      attributes:@{
+            NSFontAttributeName: [NSFont systemFontOfSize:[NSFont systemFontSizeForControlSize:NSMiniControlSize]],
+            NSUnderlineStyleAttributeName: @(NSUnderlineStyleSingle),
+        }]];
+        button.attributedTitle = title;
+        button.toolTip = MGLAttributions[i].urlString;
+        button.target = self;
+        button.action = @selector(openAttribution:);
+        [button sizeToFit];
+        button.translatesAutoresizingMaskIntoConstraints = NO;
+        
+        NSView *previousView = self.attributionView.subviews.lastObject;
+        [self.attributionView addSubview:button];
+        
+        [_attributionView addConstraint:
+         [NSLayoutConstraint constraintWithItem:button
+                                      attribute:NSLayoutAttributeBottom
+                                      relatedBy:NSLayoutRelationEqual
+                                         toItem:_attributionView
+                                      attribute:NSLayoutAttributeBottom
+                                     multiplier:1
+                                       constant:0]];
+        [_attributionView addConstraint:
+         [NSLayoutConstraint constraintWithItem:button
+                                      attribute:NSLayoutAttributeLeading
+                                      relatedBy:NSLayoutRelationEqual
+                                         toItem:previousView ? previousView : _attributionView
+                                      attribute:previousView ? NSLayoutAttributeTrailing : NSLayoutAttributeLeading
+                                     multiplier:1
+                                       constant:8]];
+    }
 }
 
 - (void)dealloc {
@@ -250,6 +330,73 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 - (void)setFrame:(NSRect)frame {
     super.frame = frame;
     _mbglMap->update(mbgl::Update::Dimensions);
+}
+
+- (void)updateConstraints {
+    [self addConstraint:
+     [NSLayoutConstraint constraintWithItem:self
+                                  attribute:NSLayoutAttributeBottom
+                                  relatedBy:NSLayoutRelationEqual
+                                     toItem:_zoomControls
+                                  attribute:NSLayoutAttributeBottom
+                                 multiplier:1
+                                   constant:MGLOrnamentPadding]];
+    [self addConstraint:
+     [NSLayoutConstraint constraintWithItem:self
+                                  attribute:NSLayoutAttributeTrailing
+                                  relatedBy:NSLayoutRelationEqual
+                                     toItem:_zoomControls
+                                  attribute:NSLayoutAttributeTrailing
+                                 multiplier:1
+                                   constant:MGLOrnamentPadding]];
+    
+    [self addConstraint:
+     [NSLayoutConstraint constraintWithItem:self
+                                  attribute:NSLayoutAttributeBottom
+                                  relatedBy:NSLayoutRelationEqual
+                                     toItem:_logoView
+                                  attribute:NSLayoutAttributeBottom
+                                 multiplier:1
+                                   constant:MGLOrnamentPadding - _logoView.image.alignmentRect.origin.y]];
+    [self addConstraint:
+     [NSLayoutConstraint constraintWithItem:_logoView
+                                  attribute:NSLayoutAttributeLeading
+                                  relatedBy:NSLayoutRelationEqual
+                                     toItem:self
+                                  attribute:NSLayoutAttributeLeading
+                                 multiplier:1
+                                   constant:MGLOrnamentPadding - _logoView.image.alignmentRect.origin.x]];
+    
+    [self addConstraint:[NSLayoutConstraint constraintWithItem:_logoView
+                                                     attribute:NSLayoutAttributeBaseline
+                                                     relatedBy:NSLayoutRelationEqual
+                                                        toItem:_attributionView
+                                                     attribute:NSLayoutAttributeBaseline
+                                                    multiplier:1
+                                                      constant:_logoView.image.alignmentRect.origin.y]];
+    [self addConstraint:[NSLayoutConstraint constraintWithItem:_attributionView
+                                                     attribute:NSLayoutAttributeLeading
+                                                     relatedBy:NSLayoutRelationEqual
+                                                        toItem:_logoView
+                                                     attribute:NSLayoutAttributeTrailing
+                                                    multiplier:1
+                                                      constant:8]];
+    [self addConstraint:[NSLayoutConstraint constraintWithItem:_attributionView.subviews.firstObject
+                                                     attribute:NSLayoutAttributeTop
+                                                     relatedBy:NSLayoutRelationEqual
+                                                        toItem:_attributionView
+                                                     attribute:NSLayoutAttributeTop
+                                                    multiplier:1
+                                                      constant:0]];
+    [self addConstraint:[NSLayoutConstraint constraintWithItem:_attributionView
+                                                     attribute:NSLayoutAttributeTrailing
+                                                     relatedBy:NSLayoutRelationEqual
+                                                        toItem:_attributionView.subviews.lastObject
+                                                     attribute:NSLayoutAttributeTrailing
+                                                    multiplier:1
+                                                      constant:8]];
+    
+    [super updateConstraints];
 }
 
 - (void)renderSync {
@@ -600,6 +747,10 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     _zoomEnabled = zoomEnabled;
     _zoomControls.enabled = zoomEnabled;
     _zoomControls.hidden = !zoomEnabled;
+}
+
+- (IBAction)openAttribution:(NSButton *)sender {
+    [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:sender.toolTip]];
 }
 
 - (BOOL)showsTileEdges {
