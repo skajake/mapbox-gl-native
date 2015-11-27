@@ -19,6 +19,8 @@
 
 class MBGLView;
 
+const CGFloat MGLOrnamentPadding = 20;
+
 const NSTimeInterval MGLAnimationDuration = 0.3;
 const CGFloat MGLKeyPanningIncrement = 150;
 const CLLocationDegrees MGLKeyRotationIncrement = 25;
@@ -121,10 +123,23 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     
     _zoomControls = [[NSSegmentedControl alloc] initWithFrame:NSZeroRect];
     _zoomControls.wantsLayer = YES;
+    _zoomControls.trackingMode = NSSegmentSwitchTrackingMomentary;
+    _zoomControls.continuous = YES;
     _zoomControls.segmentCount = 2;
-    [_zoomControls setLabel:@"+" forSegment:0];
-    [_zoomControls setLabel:@"−" forSegment:1];
+    [_zoomControls setLabel:@"−" forSegment:0];
+    [(NSSegmentedCell *)_zoomControls.cell setTag:0 forSegment:0];
+    [(NSSegmentedCell *)_zoomControls.cell setToolTip:@"Zoom Out" forSegment:0];
+    [_zoomControls setLabel:@"+" forSegment:1];
+    [(NSSegmentedCell *)_zoomControls.cell setTag:1 forSegment:1];
+    [(NSSegmentedCell *)_zoomControls.cell setToolTip:@"Zoom In" forSegment:1];
+    _zoomControls.target = self;
+    _zoomControls.action = @selector(zoomInOrOut:);
+    _zoomControls.controlSize = NSRegularControlSize;
     [_zoomControls sizeToFit];
+    NSSize zoomControlsSize = _zoomControls.frame.size;
+    _zoomControls.frame = NSMakeRect(self.bounds.size.width - zoomControlsSize.width - MGLOrnamentPadding, MGLOrnamentPadding, zoomControlsSize.width, zoomControlsSize.height);
+    _zoomControls.autoresizingMask = NSViewMinXMargin | NSViewMaxYMargin;
+    _zoomControls.translatesAutoresizingMaskIntoConstraints = YES;
     [self addSubview:_zoomControls positioned:NSWindowAbove relativeTo:nil];
     
     self.acceptsTouchEvents = YES;
@@ -143,6 +158,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     
     NSClickGestureRecognizer *doubleClickGestureRecognizer = [[NSClickGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleClickGesture:)];
     doubleClickGestureRecognizer.numberOfClicksRequired = 2;
+    doubleClickGestureRecognizer.delaysPrimaryMouseButtonEvents = NO;
     [self addGestureRecognizer:doubleClickGestureRecognizer];
     
     _magnificationGestureRecognizer = [[NSMagnificationGestureRecognizer alloc] initWithTarget:self action:@selector(handleMagnificationGesture:)];
@@ -331,6 +347,19 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 
 - (double)minimumZoomLevel {
     return _mbglMap->getMinZoom();
+}
+
+- (IBAction)zoomInOrOut:(NSSegmentedControl *)sender {
+    switch (sender.selectedSegment) {
+        case 0:
+            [self moveToEndOfParagraph:sender];
+            break;
+        case 1:
+            [self moveToBeginningOfParagraph:sender];
+            break;
+        default:
+            break;
+    }
 }
 
 - (CLLocationDirection)direction {
@@ -565,6 +594,12 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     if (self.rotateEnabled) {
         [self offsetDirectionBy:-MGLKeyRotationIncrement animated:YES];
     }
+}
+
+- (void)setZoomEnabled:(BOOL)zoomEnabled {
+    _zoomEnabled = zoomEnabled;
+    _zoomControls.enabled = zoomEnabled;
+    _zoomControls.hidden = !zoomEnabled;
 }
 
 - (BOOL)showsTileEdges {
