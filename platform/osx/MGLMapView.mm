@@ -120,6 +120,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     [reachability startNotifier];
     
     _zoomControls = [[NSSegmentedControl alloc] initWithFrame:NSZeroRect];
+    _zoomControls.wantsLayer = YES;
     _zoomControls.segmentCount = 2;
     [_zoomControls setLabel:@"+" forSegment:0];
     [_zoomControls setLabel:@"−" forSegment:1];
@@ -226,6 +227,10 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     return YES;
 }
 
+- (BOOL)wantsBestResolutionOpenGLSurface {
+    return YES;
+}
+
 - (void)setFrame:(NSRect)frame {
     super.frame = frame;
     _mbglMap->update(mbgl::Update::Dimensions);
@@ -242,7 +247,6 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
         
         _mbglMap->setSourceTileCacheSize(cacheSize);
         _mbglMap->renderSync();
-//        glFlush();
         
 //        [self updateUserLocationAnnotationView];
     }
@@ -610,7 +614,9 @@ public:
     
     void activate() override {
         MGLOpenGLLayer *layer = (MGLOpenGLLayer *)nativeView.layer;
-        [layer.openGLContext makeCurrentContext];
+        if ([NSOpenGLContext currentContext] != layer.openGLContext) {
+            [layer.openGLContext makeCurrentContext];
+        }
     }
     
     void deactivate() override {
@@ -623,7 +629,9 @@ public:
                                   waitUntilDone:NO];
     }
     
-    void beforeRender() override {}
+    void beforeRender() override {
+        activate();
+    }
     
     void afterRender() override {}
     
@@ -640,7 +648,11 @@ private:
     return (MGLMapView *)super.view;
 }
 
-- (BOOL)isAsynchronous {
+//- (BOOL)isAsynchronous {
+//    return YES;
+//}
+
+- (BOOL)needsDisplayOnBoundsChange {
     return YES;
 }
 
