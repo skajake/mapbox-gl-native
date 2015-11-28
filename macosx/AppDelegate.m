@@ -45,6 +45,11 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
                                              selector:@selector(userDefaultsDidChange:)
                                                  name:NSUserDefaultsDidChangeNotification
                                                object:nil];
+    
+    [[NSAppleEventManager sharedAppleEventManager] setEventHandler:self
+                                                       andSelector:@selector(handleGetURLEvent:withReplyEvent:)
+                                                     forEventClass:kInternetEventClass
+                                                        andEventID:kAEGetURL];
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
@@ -69,6 +74,36 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
     if (![accessToken isEqualToString:[MGLAccountManager accessToken]]) {
         [MGLAccountManager setAccessToken:accessToken];
         [self reload:self];
+    }
+}
+
+- (void)handleGetURLEvent:(NSAppleEventDescriptor *)event withReplyEvent:(NSAppleEventDescriptor *)replyEvent {
+    NSURL *url = [NSURL URLWithString:[event paramDescriptorForKeyword:keyDirectObject].stringValue];
+    NS_MUTABLE_DICTIONARY_OF(NSString *, NSString *) *params = [[NSMutableDictionary alloc] init];
+    for (NSString *param in [url.query componentsSeparatedByString:@"&"]) {
+        NSArray *parts = [param componentsSeparatedByString:@"="];
+        if (parts.count >= 2) {
+            params[parts[0]] = [parts[1] stringByReplacingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+        }
+    }
+    
+    NSString *centerString = params[@"center"];
+    if (centerString) {
+        NS_ARRAY_OF(NSString *) *coordinateValues = [centerString componentsSeparatedByString:@","];
+        if (coordinateValues.count == 2) {
+            self.mapView.centerCoordinate = CLLocationCoordinate2DMake(coordinateValues[0].doubleValue,
+                                                                       coordinateValues[1].doubleValue);
+        }
+    }
+    
+    NSString *zoomLevelString = params[@"zoom"];
+    if (zoomLevelString.length) {
+        self.mapView.zoomLevel = zoomLevelString.doubleValue;
+    }
+    
+    NSString *directionString = params[@"bearing"];
+    if (directionString.length) {
+        self.mapView.direction = directionString.doubleValue;
     }
 }
 
