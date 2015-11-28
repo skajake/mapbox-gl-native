@@ -64,6 +64,15 @@ echo "Created ${OUTPUT}/static/lib${NAME}.a"
 
 step "Copying Headers..."
 mkdir -p "${OUTPUT}/static/Headers"
+for i in `ls -R include/mbgl/darwin | grep -vi private`; do
+    cp -pv include/mbgl/darwin/$i "${OUTPUT}/static/Headers"
+done
 for i in `ls -R include/mbgl/osx | grep -vi private`; do
     cp -pv include/mbgl/osx/$i "${OUTPUT}/static/Headers"
 done
+
+step "Copying Resources..."
+cp -pv LICENSE.md "${OUTPUT}/static"
+mkdir -p "${OUTPUT}/static/${NAME}.bundle"
+cp -pv platform/osx/resources/* "${OUTPUT}/static/${NAME}.bundle"
+
