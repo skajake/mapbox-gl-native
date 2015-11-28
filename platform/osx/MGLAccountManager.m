@@ -1,9 +1,9 @@
-#import "MGLAccountManager_Private.h"
+#import "../osx/MGLAccountManager_Private.h"
 
-#import "MGLMapView.h"
+#import <mbgl/osx/MGLMapView.h>
 
 #import "NSBundle+MGLAdditions.h"
-#import "NSString+MGLAdditions.h"
+#import "../darwin/NSString+MGLAdditions.h"
 
 @interface MGLAccountManager ()
 

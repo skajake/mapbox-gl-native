@@ -1,4 +1,4 @@
-#import "MGLMapView.h"
+#import <mbgl/osx/MGLMapView.h>
 #import "MGLAccountManager_Private.h"
 #import "MGLStyle.h"
 
@@ -13,8 +13,8 @@
 #import <mbgl/util/constants.hpp>
 
 #import "NSBundle+MGLAdditions.h"
-#import "NSException+MGLAdditions.h"
-#import "NSString+MGLAdditions.h"
+#import "../darwin/NSException+MGLAdditions.h"
+#import "../darwin/NSString+MGLAdditions.h"
 
 #import <QuartzCore/QuartzCore.h>
 

@@ -20,6 +20,10 @@
         '../platform/darwin/NSException+MGLAdditions.h',
         '../platform/darwin/NSString+MGLAdditions.h',
         '../platform/darwin/NSString+MGLAdditions.m',
+        '../include/mbgl/darwin/MGLTypes.h',
+        '../platform/darwin/MGLTypes.m',
+        '../include/mbgl/darwin/MGLStyle.h',
+        '../platform/darwin/MGLStyle.mm',
         '../include/mbgl/ios/Mapbox.h',
         '../platform/ios/MGLMapboxEvents.h',
         '../platform/ios/MGLMapboxEvents.m',
@@ -37,8 +41,6 @@
         '../platform/ios/MGLUserLocation.m',
         '../platform/ios/MGLUserLocationAnnotationView.h',
         '../platform/ios/MGLUserLocationAnnotationView.m',
-        '../include/mbgl/ios/MGLTypes.h',
-        '../platform/ios/MGLTypes.m',
         '../include/mbgl/ios/MGLGeometry.h',
         '../platform/ios/MGLGeometry.m',
         '../include/mbgl/ios/MGLMultiPoint.h',
@@ -55,8 +57,6 @@
         '../platform/ios/MGLShape.m',
         '../include/mbgl/ios/MGLAnnotationImage.h',
         '../platform/ios/MGLAnnotationImage.m',
-        '../include/mbgl/ios/MGLStyle.h',
-        '../platform/ios/MGLStyle.mm',
         '../platform/ios/MGLCategoryLoader.h',
         '../platform/ios/MGLCategoryLoader.m',
         '../platform/ios/NSBundle+MGLAdditions.h',
@@ -92,6 +92,8 @@
       },
 
       'include_dirs': [
+        '../include/mbgl/ios',
+        '../include/mbgl/darwin',
         '../include',
       ],
 
@@ -110,6 +112,8 @@
 
       'direct_dependent_settings': {
         'include_dirs': [
+          '../include/mbgl/ios',
+          '../include/mbgl/darwin',
           '../include',
         ],
         'mac_bundle_resources': [
