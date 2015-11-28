@@ -872,9 +872,9 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     [self setDirection:-sender.doubleValue animated:YES];
 }
 
-- (NSUInteger)debugMask {
+- (MGLMapDebugMaskOptions)debugMask {
     mbgl::MapDebugOptions options = _mbglMap->getDebug();
-    NSUInteger mask = 0;
+    MGLMapDebugMaskOptions mask = 0;
     if (options & mbgl::MapDebugOptions::TileBorders) {
         mask |= MGLMapDebugTileBoundariesMask;
     }
@@ -890,7 +890,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     return mask;
 }
 
-- (void)setDebugMask:(NSUInteger)debugMask {
+- (void)setDebugMask:(MGLMapDebugMaskOptions)debugMask {
     mbgl::MapDebugOptions options = mbgl::MapDebugOptions::NoDebug;
     if (debugMask & MGLMapDebugTileBoundariesMask) {
         options |= mbgl::MapDebugOptions::TileBorders;

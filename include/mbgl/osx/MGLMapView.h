@@ -5,13 +5,12 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-typedef enum : NSUInteger {
+typedef NS_OPTIONS(NSUInteger, MGLMapDebugMaskOptions) {
     MGLMapDebugTileBoundariesMask = 1 << 1,
     MGLMapDebugTileInfoMask = 1 << 2,
     MGLMapDebugTimestampsMask = 1 << 3,
     MGLMapDebugCollisionBoxesMask = 1 << 4,
-    MGLMapDebugAllMask = 0xffffffff,
-} MGLMapDebugMaskOptions;
+};
 
 @protocol MGLMapViewDelegate;
 
@@ -49,7 +48,7 @@ typedef enum : NSUInteger {
 
 @property (nonatomic, weak, nullable) IBOutlet id <MGLMapViewDelegate> delegate;
 
-@property (nonatomic) NSUInteger debugMask;
+@property (nonatomic) MGLMapDebugMaskOptions debugMask;
 
 @end
 
