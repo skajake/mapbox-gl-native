@@ -26,6 +26,8 @@ const NSTimeInterval MGLAnimationDuration = 0.3;
 const CGFloat MGLKeyPanningIncrement = 150;
 const CLLocationDegrees MGLKeyRotationIncrement = 25;
 
+static NSString * const MGLVendorDirectoryName = @"com.mapbox.MapboxGL";
+
 struct MGLAttribution {
     NSString *title;
     NSString *urlString;
@@ -134,13 +136,21 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 - (void)commonInit {
     _mbglView = new MBGLView(self, [NSScreen mainScreen].backingScaleFactor);
     
-    NSString *fileCachePath = @"";
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-    if (paths.count != 0) {
-        NSString *libraryDirectory = paths[0];
-        fileCachePath = [libraryDirectory stringByAppendingPathComponent:@"cache.db"];
-    }
-    _mbglFileCache = mbgl::SharedSQLiteCache::get(fileCachePath.UTF8String);
+    // Place the cache in a location that can be shared among all the
+    // applications that embed the Mapbox OS X SDK.
+    NSURL *cacheDirectoryURL = [[NSFileManager defaultManager] URLForDirectory:NSCachesDirectory
+                                                                      inDomain:NSUserDomainMask
+                                                             appropriateForURL:nil
+                                                                        create:YES
+                                                                         error:nil];
+    cacheDirectoryURL = [cacheDirectoryURL URLByAppendingPathComponent:MGLVendorDirectoryName];
+    [[NSFileManager defaultManager] createDirectoryAtURL:cacheDirectoryURL
+                             withIntermediateDirectories:YES
+                                              attributes:nil
+                                                   error:nil];
+    NSURL *cacheURL = [cacheDirectoryURL URLByAppendingPathComponent:@"cache.db"];
+    NSString *cachePath = cacheURL ? cacheURL.path : @"";
+    _mbglFileCache = mbgl::SharedSQLiteCache::get(cachePath.UTF8String);
     _mbglFileSource = new mbgl::DefaultFileSource(_mbglFileCache.get());
     
     _mbglMap = new mbgl::Map(*_mbglView, *_mbglFileSource, mbgl::MapMode::Continuous);
