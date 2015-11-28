@@ -1,5 +1,4 @@
 #include <mbgl/map/map.hpp>
-#include <mbgl/map/still_image.hpp>
 #include <mbgl/util/image.hpp>
 #include <mbgl/util/io.hpp>
 
@@ -100,21 +99,19 @@ int main(int argc, char *argv[]) {
     map.setBearing(bearing);
 
     if (debug) {
-        map.setDebug(debug);
+        map.setDebug(debug ? mbgl::MapDebugOptions::TileBorders | mbgl::MapDebugOptions::ParseStatus : mbgl::MapDebugOptions::NoDebug);
     }
 
     uv_async_t *async = new uv_async_t;
     uv_async_init(uv_default_loop(), async, [](UV_ASYNC_PARAMS(as)) {
-        std::unique_ptr<const StillImage> image(reinterpret_cast<const StillImage *>(as->data));
+        std::unique_ptr<PremultipliedImage> image(reinterpret_cast<PremultipliedImage*>(as->data));
         uv_close(reinterpret_cast<uv_handle_t *>(as), [](uv_handle_t *handle) {
             delete reinterpret_cast<uv_async_t *>(handle);
         });
-
-        const std::string png = util::compress_png(image->width, image->height, image->pixels.get());
-        util::write_file(output, png);
+        util::write_file(output, encodePNG(*image));
     });
 
-    map.renderStill([async](std::exception_ptr error, std::unique_ptr<const StillImage> image) {
+    map.renderStill([async](std::exception_ptr error, PremultipliedImage&& image) {
         try {
             if (error) {
                 std::rethrow_exception(error);
@@ -124,7 +121,7 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
 
-        async->data = const_cast<StillImage *>(image.release());
+        async->data = new PremultipliedImage(std::move(image));
         uv_async_send(async);
     });
 

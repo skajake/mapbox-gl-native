@@ -52,6 +52,7 @@
         'miscellaneous/enums.cpp',
         'miscellaneous/functions.cpp',
         'miscellaneous/geo.cpp',
+        'miscellaneous/image.cpp',
         'miscellaneous/map.cpp',
         'miscellaneous/map_context.cpp',
         'miscellaneous/mapbox.cpp',
@@ -109,6 +110,7 @@
           '<@(geojsonvt_cflags)',
           '<@(variant_cflags)',
           '<@(rapidjson_cflags)',
+          '<@(pixelmatch_cflags)',
         ],
         'ldflags': [
           '<@(gtest_ldflags)',

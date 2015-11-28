@@ -1,6 +1,10 @@
 #include "util.hpp"
 
 #include <mbgl/platform/log.hpp>
+#include <mbgl/util/image.hpp>
+#include <mbgl/util/io.hpp>
+
+#include <mapbox/pixelmatch.hpp>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
@@ -79,6 +83,34 @@ uint64_t crc64(const char* data, size_t size) {
 
 uint64_t crc64(const std::string& str) {
     return crc64(str.data(), str.size());
+}
+
+void checkImage(const std::string& base,
+                const PremultipliedImage& actual,
+                double imageThreshold,
+                double pixelThreshold) {
+    if (getenv("UPDATE")) {
+        util::write_file(base + "/expected.png", encodePNG(actual));
+        return;
+    }
+
+    PremultipliedImage expected = decodeImage(util::read_file(base + "/expected.png"));
+    PremultipliedImage diff { expected.width, expected.height };
+
+    ASSERT_EQ(expected.width, actual.width);
+    ASSERT_EQ(expected.height, actual.height);
+
+    double pixels = mapbox::pixelmatch(actual.data.get(),
+                                       expected.data.get(),
+                                       expected.width,
+                                       expected.height,
+                                       diff.data.get(),
+                                       pixelThreshold);
+
+    EXPECT_LE(pixels / (expected.width * expected.height), imageThreshold);
+
+    util::write_file(base + "/actual.png", encodePNG(actual));
+    util::write_file(base + "/diff.png", encodePNG(diff));
 }
 
 }

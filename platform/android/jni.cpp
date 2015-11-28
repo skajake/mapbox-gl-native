@@ -375,6 +375,7 @@ std::pair<mbgl::AnnotationSegment, mbgl::ShapeAnnotation::Properties> annotation
 namespace {
 
 using namespace mbgl::android;
+using DebugOptions = mbgl::MapDebugOptions;
 
 jlong JNICALL nativeCreate(JNIEnv *env, jobject obj, jstring cachePath_, jstring dataPath_, jstring apkPath_, jfloat pixelRatio, jint availableProcessors, jlong totalMemory) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeCreate");
@@ -1293,7 +1294,10 @@ void JNICALL nativeSetDebug(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jb
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetDebug");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
-    nativeMapView->getMap().setDebug(debug);
+
+    DebugOptions debugOptions = debug ? DebugOptions::TileBorders | DebugOptions::ParseStatus | DebugOptions::Collision
+                                      : DebugOptions::NoDebug;
+    nativeMapView->getMap().setDebug(debugOptions);
     nativeMapView->enableFps(debug);
 }
 
@@ -1301,36 +1305,15 @@ void JNICALL nativeToggleDebug(JNIEnv *env, jobject obj, jlong nativeMapViewPtr)
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeToggleDebug");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
-    nativeMapView->getMap().toggleDebug();
-    nativeMapView->enableFps(nativeMapView->getMap().getDebug());
+    nativeMapView->getMap().cycleDebugOptions();
+    nativeMapView->enableFps(nativeMapView->getMap().getDebug() != DebugOptions::NoDebug);
 }
 
 jboolean JNICALL nativeGetDebug(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetDebug");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
-    return nativeMapView->getMap().getDebug();
-}
-
-void JNICALL nativeSetCollisionDebug(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jboolean debug) {
-    mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetCollisionDebug");
-    assert(nativeMapViewPtr != 0);
-    NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
-    nativeMapView->getMap().setCollisionDebug(debug);
-}
-
-void JNICALL nativeToggleCollisionDebug(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
-    mbgl::Log::Debug(mbgl::Event::JNI, "nativeToggleCollisionDebug");
-    assert(nativeMapViewPtr != 0);
-    NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
-    nativeMapView->getMap().toggleCollisionDebug();
-}
-
-jboolean JNICALL nativeGetCollisionDebug(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
-    mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetCollisionDebug");
-    assert(nativeMapViewPtr != 0);
-    NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
-    return nativeMapView->getMap().getCollisionDebug();
+    return nativeMapView->getMap().getDebug() != DebugOptions::NoDebug;
 }
 
 jboolean JNICALL nativeIsFullyLoaded(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
@@ -1951,9 +1934,6 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
         {"nativeSetDebug", "(JZ)V", reinterpret_cast<void *>(&nativeSetDebug)},
         {"nativeToggleDebug", "(J)V", reinterpret_cast<void *>(&nativeToggleDebug)},
         {"nativeGetDebug", "(J)Z", reinterpret_cast<void *>(&nativeGetDebug)},
-        {"nativeSetCollisionDebug", "(JZ)V", reinterpret_cast<void *>(&nativeSetCollisionDebug)},
-        {"nativeToggleCollisionDebug", "(J)V", reinterpret_cast<void *>(&nativeToggleCollisionDebug)},
-        {"nativeGetCollisionDebug", "(J)Z", reinterpret_cast<void *>(&nativeGetCollisionDebug)},
         {"nativeIsFullyLoaded", "(J)Z", reinterpret_cast<void *>(&nativeIsFullyLoaded)},
         {"nativeSetReachability", "(JZ)V", reinterpret_cast<void *>(&nativeSetReachability)},
         {"nativeGetMetersPerPixelAtLatitude", "(JDD)D", reinterpret_cast<void *>(&nativeGetMetersPerPixelAtLatitude)},

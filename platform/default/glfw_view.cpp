@@ -89,7 +89,6 @@ GLFWView::GLFWView(bool fullscreen_, bool benchmark_)
     printf("- Press `S` to cycle through bundled styles\n");
     printf("- Press `X` to reset the transform\n");
     printf("- Press `N` to reset north\n");
-    printf("- Press `C` to toggle symbol collision debug boxes\n");
     printf("- Press `R` to toggle any available `night` style class\n");
     printf("\n");
     printf("- Press `1` through `6` to add increasing numbers of point annotations for testing\n");
@@ -102,7 +101,7 @@ GLFWView::GLFWView(bool fullscreen_, bool benchmark_)
     printf("- `Control` + mouse drag to rotate\n");
     printf("- `Shift` + mouse drag to tilt\n");
     printf("\n");
-    printf("- Press `Tab` to toggle debug information\n");
+    printf("- Press `Tab` to cycle through the map debug options\n");
     printf("- Press `Esc` to quit\n");
     printf("\n");
     printf("================================================================================\n");
@@ -127,10 +126,7 @@ void GLFWView::onKey(GLFWwindow *window, int key, int /*scancode*/, int action, 
             glfwSetWindowShouldClose(window, true);
             break;
         case GLFW_KEY_TAB:
-            view->map->toggleDebug();
-            break;
-        case GLFW_KEY_C:
-            view->map->toggleCollisionDebug();
+            view->map->cycleDebugOptions();
             break;
         case GLFW_KEY_X:
             if (!mods)
