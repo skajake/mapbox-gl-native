@@ -1,5 +1,7 @@
-#import <mbgl/osx/MGLMapView.h>
+#import "MGLMapView_Private.h"
+#import <mbgl/osx/MGLMapViewDelegate.h>
 #import "MGLAccountManager_Private.h"
+#import "MGLOpenGLLayer.h"
 #import "MGLStyle.h"
 
 #import <mbgl/mbgl.hpp>
@@ -72,10 +74,6 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 
 @end
 
-@interface MGLOpenGLLayer : NSOpenGLLayer
-
-@end
-
 @interface MGLMapView ()
 
 @property (nonatomic, readwrite) NSSegmentedControl *zoomControls;
@@ -83,7 +81,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 @property (nonatomic, readwrite) NSImageView *logoView;
 @property (nonatomic, readwrite) NSView *attributionView;
 
-@property (nonatomic, getter=isDormant) BOOL dormant;
+@property (nonatomic, readwrite, getter=isDormant) BOOL dormant;
 
 @end
 
@@ -501,9 +499,22 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     }
     
     switch (change) {
+        case mbgl::MapChangeRegionWillChange:
+        case mbgl::MapChangeRegionWillChangeAnimated:
+        {
+            if ([self.delegate respondsToSelector:@selector(mapView:regionWillChangeAnimated:)]) {
+                BOOL animated = change == mbgl::MapChangeRegionWillChangeAnimated;
+                [self.delegate mapView:self regionWillChangeAnimated:animated];
+            }
+            break;
+        }
         case mbgl::MapChangeRegionIsChanging:
         {
             [self updateCompass];
+            
+            if ([self.delegate respondsToSelector:@selector(mapViewRegionIsChanging:)]) {
+                [self.delegate mapViewRegionIsChanging:self];
+            }
             break;
         }
         case mbgl::MapChangeRegionDidChange:
@@ -511,12 +522,27 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
         {
             [self updateZoomControls];
             [self updateCompass];
+            
+            if ([self.delegate respondsToSelector:@selector(mapView:regionDidChangeAnimated:)]) {
+                BOOL animated = change == mbgl::MapChangeRegionDidChangeAnimated;
+                [self.delegate mapView:self regionDidChangeAnimated:animated];
+            }
             break;
         }
-        case mbgl::MapChangeRegionWillChange:
-        case mbgl::MapChangeRegionWillChangeAnimated:
         case mbgl::MapChangeWillStartLoadingMap:
+        {
+            if ([self.delegate respondsToSelector:@selector(mapViewWillStartLoadingMap:)]) {
+                [self.delegate mapViewWillStartLoadingMap:self];
+            }
+            break;
+        }
         case mbgl::MapChangeDidFinishLoadingMap:
+        {
+            if ([self.delegate respondsToSelector:@selector(mapViewDidFinishLoadingMap:)]) {
+                [self.delegate mapViewDidFinishLoadingMap:self];
+            }
+            break;
+        }
         case mbgl::MapChangeDidFailLoadingMap:
         case mbgl::MapChangeWillStartRenderingMap:
         case mbgl::MapChangeDidFinishRenderingMap:
@@ -937,66 +963,5 @@ private:
     __weak MGLMapView *nativeView = nullptr;
     const float scaleFactor;
 };
-
-@end
-
-@implementation MGLOpenGLLayer
-
-- (MGLMapView *)mapView {
-    return (MGLMapView *)super.view;
-}
-
-//- (BOOL)isAsynchronous {
-//    return YES;
-//}
-
-- (BOOL)needsDisplayOnBoundsChange {
-    return YES;
-}
-
-- (CGRect)frame {
-    return self.view.bounds;
-}
-
-- (NSOpenGLPixelFormat *)openGLPixelFormatForDisplayMask:(uint32_t)mask {
-    NSOpenGLPixelFormatAttribute pfas[] = {
-        NSOpenGLPFAAccelerated,
-        NSOpenGLPFAClosestPolicy,
-        NSOpenGLPFAAccumSize, 32,
-        NSOpenGLPFAColorSize, 24,
-        NSOpenGLPFAAlphaSize, 8,
-        NSOpenGLPFADepthSize, 16,
-        NSOpenGLPFAStencilSize, 8,
-        NSOpenGLPFAScreenMask, mask,
-        0
-    };
-    return [[NSOpenGLPixelFormat alloc] initWithAttributes:pfas];
-}
-
-- (NSOpenGLContext *)openGLContextForPixelFormat:(NSOpenGLPixelFormat *)pixelFormat {
-    mbgl::gl::InitializeExtensions([](const char *name) {
-        static CFBundleRef framework = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.opengl"));
-        if (!framework) {
-            throw std::runtime_error("Failed to load OpenGL framework.");
-        }
-        
-        CFStringRef str = CFStringCreateWithCString(kCFAllocatorDefault, name, kCFStringEncodingASCII);
-        void *symbol = CFBundleGetFunctionPointerForName(framework, str);
-        CFRelease(str);
-        
-        return reinterpret_cast<mbgl::gl::glProc>(symbol);
-    });
-    
-    return [super openGLContextForPixelFormat:pixelFormat];
-}
-
-- (BOOL)canDrawInOpenGLContext:(__unused NSOpenGLContext *)context pixelFormat:(__unused NSOpenGLPixelFormat *)pixelFormat forLayerTime:(__unused CFTimeInterval)t displayTime:(__unused const CVTimeStamp *)ts {
-    return !self.mapView.dormant;
-}
-
-- (void)drawInOpenGLContext:(NSOpenGLContext *)context pixelFormat:(NSOpenGLPixelFormat *)pixelFormat forLayerTime:(CFTimeInterval)t displayTime:(const CVTimeStamp *)ts {
-    [self.mapView renderSync];
-    [super drawInOpenGLContext:context pixelFormat:pixelFormat forLayerTime:t displayTime:ts];
-}
 
 @end

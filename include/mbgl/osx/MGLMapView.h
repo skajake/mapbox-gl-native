@@ -1,6 +1,8 @@
 #import <Cocoa/Cocoa.h>
 #import <CoreLocation/CoreLocation.h>
 
+#import "MGLTypes.h"
+
 NS_ASSUME_NONNULL_BEGIN
 
 typedef enum : NSUInteger {
@@ -10,6 +12,8 @@ typedef enum : NSUInteger {
     MGLMapDebugCollisionBoxesMask = 1 << 4,
     MGLMapDebugAllMask = 0xffffffff,
 } MGLMapDebugMaskOptions;
+
+@protocol MGLMapViewDelegate;
 
 @interface MGLMapView : NSView
 
@@ -42,6 +46,8 @@ typedef enum : NSUInteger {
 @property (nonatomic, getter=isZoomEnabled) BOOL zoomEnabled;
 @property (nonatomic, getter=isRotateEnabled) BOOL rotateEnabled;
 @property (nonatomic, getter=isPitchEnabled) BOOL pitchEnabled;
+
+@property (nonatomic, weak, nullable) IBOutlet id <MGLMapViewDelegate> delegate;
 
 @property (nonatomic) NSUInteger debugMask;
 
