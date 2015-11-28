@@ -24,6 +24,8 @@
         '../platform/darwin/MGLTypes.m',
         '../include/mbgl/darwin/MGLStyle.h',
         '../platform/darwin/MGLStyle.mm',
+        '../include/mbgl/darwin/MGLGeometry.h',
+        '../platform/darwin/MGLGeometry.m',
         '../include/mbgl/osx/Mapbox.h',
         '../include/mbgl/osx/MGLAccountManager.h',
         '../platform/osx/MGLAccountManager_Private.h',

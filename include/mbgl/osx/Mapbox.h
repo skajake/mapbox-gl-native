@@ -1,4 +1,5 @@
 #import "MGLAccountManager.h"
+#import "MGLGeometry.h"
 #import "MGLMapView.h"
 #import "MGLStyle.h"
 #import "MGLTypes.h"
