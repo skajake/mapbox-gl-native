@@ -117,9 +117,14 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 - (instancetype)initWithCoder:(nonnull NSCoder *)decoder {
     if (self = [super initWithCoder:decoder]) {
         [self commonInit];
-        self.styleURL = nil;
     }
     return self;
+}
+
+- (void)awakeFromNib {
+    [super awakeFromNib];
+    
+    self.styleURL = nil;
 }
 
 + (NS_ARRAY_OF(NSString *) *)restorableStateKeyPaths {
@@ -321,12 +326,14 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 
 - (nonnull NSURL *)styleURL {
     NSString *styleURLString = @(_mbglMap->getStyleURL().c_str()).mgl_stringOrNilIfEmpty;
-    NSAssert(styleURLString, @"Invalid style URL string %@", styleURLString);
-    return styleURLString ? [NSURL URLWithString:styleURLString] : nil;
+    return styleURLString ? [NSURL URLWithString:styleURLString] : [MGLStyle streetsStyleURL];
 }
 
 - (void)setStyleURL:(nullable NSURL *)styleURL {
     if (!styleURL) {
+        if (![MGLAccountManager accessToken]) {
+            return;
+        }
         styleURL = [MGLStyle streetsStyleURL];
     }
     

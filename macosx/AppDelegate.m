@@ -10,6 +10,8 @@
 
 #import <mbgl/osx/Mapbox.h>
 
+static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken";
+
 @interface AppDelegate () <NSSharingServicePickerDelegate>
 
 @property (weak) IBOutlet NSWindow *window;
@@ -24,18 +26,25 @@
 + (void)load {
     // Set access token, unless MGLAccountManager already read it in from Info.plist.
     if (![MGLAccountManager accessToken]) {
-        NSString *accessToken = [[NSProcessInfo processInfo] environment][@"MAPBOX_ACCESS_TOKEN"];
+        NSString *accessToken = [NSProcessInfo processInfo].environment[@"MAPBOX_ACCESS_TOKEN"];
         if (accessToken) {
             // Store to preferences so that we can launch the app later on without having to specify
             // token.
-            [[NSUserDefaults standardUserDefaults] setObject:accessToken forKey:@"MGLMapboxAccessToken"];
+            [[NSUserDefaults standardUserDefaults] setObject:accessToken forKey:MGLMapboxAccessTokenDefaultsKey];
         } else {
             // Try to retrieve from preferences, maybe we've stored them there previously and can reuse
             // the token.
-            accessToken = [[NSUserDefaults standardUserDefaults] stringForKey:@"MGLMapboxAccessToken"];
+            accessToken = [[NSUserDefaults standardUserDefaults] stringForKey:MGLMapboxAccessTokenDefaultsKey];
         }
         [MGLAccountManager setAccessToken:accessToken];
     }
+}
+
+- (void)applicationWillFinishLaunching:(NSNotification *)notification {
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(userDefaultsDidChange:)
+                                                 name:NSUserDefaultsDidChangeNotification
+                                               object:nil];
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
@@ -47,6 +56,19 @@
         [alert addButtonWithTitle:@"Open Preferences"];
         [alert runModal];
         [self showPreferences:nil];
+    }
+}
+
+- (void)applicationWillTerminate:(NSNotification *)notification {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)userDefaultsDidChange:(NSNotification *)notification {
+    NSUserDefaults *userDefaults = notification.object;
+    NSString *accessToken = [userDefaults stringForKey:MGLMapboxAccessTokenDefaultsKey];
+    if (![accessToken isEqualToString:[MGLAccountManager accessToken]]) {
+        [MGLAccountManager setAccessToken:accessToken];
+        [self reload:self];
     }
 }
 
@@ -240,6 +262,10 @@
 }
 
 - (NSUInteger)indexOfStyleInToolbarItem {
+    if (![MGLAccountManager accessToken]) {
+        return NSNotFound;
+    }
+    
     NSArray *styleURLs = @[
         [MGLStyle streetsStyleURL],
         [MGLStyle emeraldStyleURL],
@@ -258,10 +284,9 @@
     
     if (toolbarItem.action == @selector(showShareMenu:)) {
         [(NSButton *)toolbarItem.view sendActionOn:NSLeftMouseDownMask];
-        NSURL *styleURL = self.mapView.styleURL;
-        return ([styleURL.scheme isEqualToString:@"mapbox"]
-                && [styleURL.pathComponents.firstObject isEqualToString:@"styles"]
-                && [MGLAccountManager accessToken]);
+        return ([MGLAccountManager accessToken]
+                && [self.mapView.styleURL.scheme isEqualToString:@"mapbox"]
+                && [self.mapView.styleURL.pathComponents.firstObject isEqualToString:@"styles"]);
     }
     if (toolbarItem.action == @selector(setStyle:)) {
         NSPopUpButton *popUpButton = (NSPopUpButton *)toolbarItem.view;
