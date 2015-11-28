@@ -12,7 +12,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)reloadStyle:(id)sender;
 
 @property (nonatomic, readonly) NSSegmentedControl *zoomControls;
-//@property (nonatomic, readonly) NSSlider *compass;
+@property (nonatomic, readonly) NSSlider *compass;
 @property (nonatomic, readonly) NSImageView *logoView;
 @property (nonatomic, readonly) NSView *attributionView;
 

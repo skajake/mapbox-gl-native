@@ -46,6 +46,30 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     return CLLocationCoordinate2DMake(latLng.latitude, latLng.longitude);
 }
 
+@interface MGLCompassCell : NSSliderCell
+
+@end
+
+@implementation MGLCompassCell
+
+- (void)drawKnob:(NSRect)knobRect {
+    NSBezierPath *trianglePath = [NSBezierPath bezierPath];
+    [trianglePath moveToPoint:NSMakePoint(NSMinX(knobRect), NSMaxY(knobRect))];
+    [trianglePath lineToPoint:NSMakePoint(NSMaxX(knobRect), NSMaxY(knobRect))];
+    [trianglePath lineToPoint:NSMakePoint(NSMidX(knobRect), NSMinY(knobRect))];
+    [trianglePath closePath];
+    NSAffineTransform *transform = [NSAffineTransform transform];
+    [transform translateXBy:NSMidX(knobRect) yBy:NSMidY(knobRect)];
+    [transform scaleBy:0.8];
+    [transform rotateByDegrees:self.doubleValue];
+    [transform translateXBy:-NSMidX(knobRect) yBy:-NSMidY(knobRect)];
+    [trianglePath transformUsingAffineTransform:transform];
+    [[NSColor redColor] setFill];
+    [trianglePath fill];
+}
+
+@end
+
 @interface MGLOpenGLLayer : NSOpenGLLayer
 
 @end
@@ -53,7 +77,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 @interface MGLMapView ()
 
 @property (nonatomic, readwrite) NSSegmentedControl *zoomControls;
-//@property (nonatomic, readwrite) NSSlider *compass;
+@property (nonatomic, readwrite) NSSlider *compass;
 @property (nonatomic, readwrite) NSImageView *logoView;
 @property (nonatomic, readwrite) NSView *attributionView;
 
@@ -150,6 +174,21 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     [_zoomControls sizeToFit];
     _zoomControls.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_zoomControls];
+    
+    _compass = [[NSSlider alloc] initWithFrame:NSZeroRect];
+    _compass.wantsLayer = YES;
+    _compass.layer.opacity = 0.9;
+    _compass.cell = [[MGLCompassCell alloc] init];
+    _compass.continuous = YES;
+    [(NSSliderCell *)_compass.cell setSliderType:NSCircularSlider];
+    _compass.numberOfTickMarks = 4;
+    _compass.minValue = -360;
+    _compass.maxValue = 0;
+    _compass.target = self;
+    _compass.action = @selector(rotate:);
+    [_compass sizeToFit];
+    _compass.translatesAutoresizingMaskIntoConstraints = NO;
+    [self addSubview:_compass];
     
     _logoView = [[NSImageView alloc] initWithFrame:NSZeroRect];
     _logoView.wantsLayer = YES;
@@ -351,6 +390,23 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
                                    constant:MGLOrnamentPadding]];
     
     [self addConstraint:
+     [NSLayoutConstraint constraintWithItem:_compass
+                                  attribute:NSLayoutAttributeCenterX
+                                  relatedBy:NSLayoutRelationEqual
+                                     toItem:_zoomControls
+                                  attribute:NSLayoutAttributeCenterX
+                                 multiplier:1
+                                   constant:0]];
+    [self addConstraint:
+     [NSLayoutConstraint constraintWithItem:_zoomControls
+                                  attribute:NSLayoutAttributeTop
+                                  relatedBy:NSLayoutRelationEqual
+                                     toItem:_compass
+                                  attribute:NSLayoutAttributeBottom
+                                 multiplier:1
+                                   constant:8]];
+    
+    [self addConstraint:
      [NSLayoutConstraint constraintWithItem:self
                                   attribute:NSLayoutAttributeBottom
                                   relatedBy:NSLayoutRelationEqual
@@ -429,10 +485,15 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     
     switch (change) {
         case mbgl::MapChangeRegionIsChanging:
+        {
+            [self updateCompass];
+            break;
+        }
         case mbgl::MapChangeRegionDidChange:
         case mbgl::MapChangeRegionDidChangeAnimated:
         {
-//            [self updateCompass];
+            [self updateZoomControls];
+            [self updateCompass];
             break;
         }
         case mbgl::MapChangeRegionWillChange:
@@ -577,11 +638,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
                    || gestureRecognizer.state == NSGestureRecognizerStateCancelled) {
             _mbglMap->setGestureInProgress(false);
         }
-    } else {
-        if (!self.scrollEnabled) {
-            return;
-        }
-        
+    } else if (self.scrollEnabled) {
         _mbglMap->cancelTransitions();
         
         if (gestureRecognizer.state == NSGestureRecognizerStateBegan) {
@@ -749,8 +806,27 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     _zoomControls.hidden = !zoomEnabled;
 }
 
+- (void)setRotateEnabled:(BOOL)rotateEnabled {
+    _rotateEnabled = rotateEnabled;
+    _compass.enabled = rotateEnabled;
+    _compass.hidden = !rotateEnabled;
+}
+
 - (IBAction)openAttribution:(NSButton *)sender {
     [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:sender.toolTip]];
+}
+
+- (void)updateZoomControls {
+    [_zoomControls setEnabled:self.zoomLevel > self.minimumZoomLevel forSegment:0];
+    [_zoomControls setEnabled:self.zoomLevel < self.maximumZoomLevel forSegment:1];
+}
+
+- (void)updateCompass {
+    _compass.doubleValue = -self.direction;
+}
+
+- (IBAction)rotate:(NSSlider *)sender {
+    [self setDirection:-sender.doubleValue animated:YES];
 }
 
 - (BOOL)showsTileEdges {
