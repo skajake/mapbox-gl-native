@@ -846,20 +846,39 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     [self setDirection:-sender.doubleValue animated:YES];
 }
 
-- (BOOL)showsTileEdges {
-    return _mbglMap->getDebug();
+- (NSUInteger)debugMask {
+    mbgl::MapDebugOptions options = _mbglMap->getDebug();
+    NSUInteger mask = 0;
+    if (options & mbgl::MapDebugOptions::TileBorders) {
+        mask |= MGLMapDebugTileBoundariesMask;
+    }
+    if (options & mbgl::MapDebugOptions::ParseStatus) {
+        mask |= MGLMapDebugParsingStatusMask;
+    }
+    if (options & mbgl::MapDebugOptions::Timestamps) {
+        mask |= MGLMapDebugTimestampsMask;
+    }
+    if (options & mbgl::MapDebugOptions::Collision) {
+        mask |= MGLMapDebugCollisionBoxesMask;
+    }
+    return mask;
 }
 
-- (void)setShowsTileEdges:(BOOL)showsTileEdges {
-    _mbglMap->setDebug(showsTileEdges);
-}
-
-- (BOOL)showsCollisionBoxes {
-    return _mbglMap->getCollisionDebug();
-}
-
-- (void)setShowsCollisionBoxes:(BOOL)showsCollisionBoxes {
-    _mbglMap->setCollisionDebug(showsCollisionBoxes);
+- (void)setDebugMask:(NSUInteger)debugMask {
+    mbgl::MapDebugOptions options = mbgl::MapDebugOptions::NoDebug;
+    if (debugMask & MGLMapDebugTileBoundariesMask) {
+        options |= mbgl::MapDebugOptions::TileBorders;
+    }
+    if (debugMask & MGLMapDebugParsingStatusMask) {
+        options |= mbgl::MapDebugOptions::ParseStatus;
+    }
+    if (debugMask & MGLMapDebugTimestampsMask) {
+        options |= mbgl::MapDebugOptions::Timestamps;
+    }
+    if (debugMask & MGLMapDebugCollisionBoxesMask) {
+        options |= mbgl::MapDebugOptions::Collision;
+    }
+    _mbglMap->setDebug(options);
 }
 
 class MBGLView : public mbgl::View {

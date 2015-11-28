@@ -3,6 +3,14 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+typedef enum : NSUInteger {
+    MGLMapDebugTileBoundariesMask = 1 << 1,
+    MGLMapDebugParsingStatusMask = 1 << 2,
+    MGLMapDebugTimestampsMask = 1 << 3,
+    MGLMapDebugCollisionBoxesMask = 1 << 4,
+    MGLMapDebugAllMask = 0xffffffff,
+} MGLMapDebugMaskOptions;
+
 @interface MGLMapView : NSView
 
 - (instancetype)initWithFrame:(CGRect)frame styleURL:(nullable NSURL *)styleURL;
@@ -35,8 +43,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, getter=isRotateEnabled) BOOL rotateEnabled;
 @property (nonatomic, getter=isPitchEnabled) BOOL pitchEnabled;
 
-@property (nonatomic) BOOL showsTileEdges;
-@property (nonatomic) BOOL showsCollisionBoxes;
+@property (nonatomic) NSUInteger debugMask;
 
 @end
 

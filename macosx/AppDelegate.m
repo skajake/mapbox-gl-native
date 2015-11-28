@@ -196,12 +196,20 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
     [self.mapView reloadStyle:sender];
 }
 
-- (IBAction)toggleTileEdges:(id)sender {
-    self.mapView.showsTileEdges = !self.mapView.showsTileEdges;
+- (IBAction)toggleTileBoundaries:(id)sender {
+    self.mapView.debugMask ^= MGLMapDebugTileBoundariesMask;
+}
+
+- (IBAction)toggleTileInfo:(id)sender {
+    self.mapView.debugMask ^= MGLMapDebugParsingStatusMask;
+}
+
+- (IBAction)toggleTileTimestamps:(id)sender {
+    self.mapView.debugMask ^= MGLMapDebugTimestampsMask;
 }
 
 - (IBAction)toggleCollisionBoxes:(id)sender {
-    self.mapView.showsCollisionBoxes = !self.mapView.showsCollisionBoxes;
+    self.mapView.debugMask ^= MGLMapDebugCollisionBoxesMask;
 }
 
 - (IBAction)showShortcuts:(id)sender {
@@ -276,12 +284,24 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
     if (menuItem.action == @selector(reload:)) {
         return YES;
     }
-    if (menuItem.action == @selector(toggleTileEdges:)) {
-        menuItem.title = self.mapView.showsTileEdges ? @"Hide Tile Edges" : @"Show Tile Edges";
+    if (menuItem.action == @selector(toggleTileBoundaries:)) {
+        BOOL isShown = self.mapView.debugMask & MGLMapDebugTileBoundariesMask;
+        menuItem.title = isShown ? @"Hide Tile Boundaries" : @"Show Tile Boundaries";
+        return YES;
+    }
+    if (menuItem.action == @selector(toggleTileInfo:)) {
+        BOOL isShown = self.mapView.debugMask & MGLMapDebugParsingStatusMask;
+        menuItem.title = isShown ? @"Hide Tile Info" : @"Show Tile Info";
+        return YES;
+    }
+    if (menuItem.action == @selector(toggleTileTimestamps:)) {
+        BOOL isShown = self.mapView.debugMask & MGLMapDebugTimestampsMask;
+        menuItem.title = isShown ? @"Hide Tile Timestamps" : @"Show Tile Timestamps";
         return YES;
     }
     if (menuItem.action == @selector(toggleCollisionBoxes:)) {
-        menuItem.title = self.mapView.showsCollisionBoxes ? @"Hide Collision Boxes" : @"Show Collision Boxes";
+        BOOL isShown = self.mapView.debugMask & MGLMapDebugCollisionBoxesMask;
+        menuItem.title = isShown ? @"Hide Collision Boxes" : @"Show Collision Boxes";
         return YES;
     }
     if (menuItem.action == @selector(showShortcuts:)) {

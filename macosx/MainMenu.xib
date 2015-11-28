@@ -413,24 +413,42 @@
                                     <action selector="reload:" target="-1" id="xkh-9F-mOe"/>
                                 </connections>
                             </menuItem>
-                            <menuItem isSeparatorItem="YES" id="bdp-ag-p0V"/>
-                            <menuItem title="Show Tile Edges" id="rDE-dG-rTR">
+                            <menuItem isSeparatorItem="YES" id="CyM-Wv-Bnc"/>
+                            <menuItem title="Show Toolbar" keyEquivalent="t" id="snW-S8-Cw5">
+                                <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
+                                <connections>
+                                    <action selector="toggleToolbarShown:" target="-1" id="BXY-wc-z0C"/>
+                                </connections>
+                            </menuItem>
+                        </items>
+                    </menu>
+                </menuItem>
+                <menuItem title="Debug" id="ZNC-5r-eBw">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <menu key="submenu" title="Debug" id="McE-ka-r79">
+                        <items>
+                            <menuItem title="Show Tile Boundaries" id="rDE-dG-rTR">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
-                                    <action selector="toggleTileEdges:" target="-1" id="J5b-Ph-O4S"/>
+                                    <action selector="toggleTileBoundaries:" target="-1" id="LAO-88-F7h"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Show Tile Info" id="LoH-qD-kb0">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <connections>
+                                    <action selector="toggleTileInfo:" target="-1" id="KCn-0G-V87"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Show Tile Timestamps" id="bY0-2E-LZ7">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <connections>
+                                    <action selector="toggleTileTimestamps:" target="-1" id="tBs-2N-KEG"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="Show Collision Boxes" id="Y0b-3K-mJE">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
                                     <action selector="toggleCollisionBoxes:" target="-1" id="EYa-7n-iWZ"/>
-                                </connections>
-                            </menuItem>
-                            <menuItem isSeparatorItem="YES" id="CyM-Wv-Bnc"/>
-                            <menuItem title="Show Toolbar" keyEquivalent="t" id="snW-S8-Cw5">
-                                <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
-                                <connections>
-                                    <action selector="toggleToolbarShown:" target="-1" id="BXY-wc-z0C"/>
                                 </connections>
                             </menuItem>
                         </items>
