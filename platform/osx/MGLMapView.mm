@@ -853,7 +853,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
         mask |= MGLMapDebugTileBoundariesMask;
     }
     if (options & mbgl::MapDebugOptions::ParseStatus) {
-        mask |= MGLMapDebugParsingStatusMask;
+        mask |= MGLMapDebugTileInfoMask;
     }
     if (options & mbgl::MapDebugOptions::Timestamps) {
         mask |= MGLMapDebugTimestampsMask;
@@ -869,7 +869,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     if (debugMask & MGLMapDebugTileBoundariesMask) {
         options |= mbgl::MapDebugOptions::TileBorders;
     }
-    if (debugMask & MGLMapDebugParsingStatusMask) {
+    if (debugMask & MGLMapDebugTileInfoMask) {
         options |= mbgl::MapDebugOptions::ParseStatus;
     }
     if (debugMask & MGLMapDebugTimestampsMask) {

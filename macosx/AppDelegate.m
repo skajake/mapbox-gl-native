@@ -201,7 +201,7 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
 }
 
 - (IBAction)toggleTileInfo:(id)sender {
-    self.mapView.debugMask ^= MGLMapDebugParsingStatusMask;
+    self.mapView.debugMask ^= MGLMapDebugTileInfoMask;
 }
 
 - (IBAction)toggleTileTimestamps:(id)sender {
@@ -290,7 +290,7 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
         return YES;
     }
     if (menuItem.action == @selector(toggleTileInfo:)) {
-        BOOL isShown = self.mapView.debugMask & MGLMapDebugParsingStatusMask;
+        BOOL isShown = self.mapView.debugMask & MGLMapDebugTileInfoMask;
         menuItem.title = isShown ? @"Hide Tile Info" : @"Show Tile Info";
         return YES;
     }
