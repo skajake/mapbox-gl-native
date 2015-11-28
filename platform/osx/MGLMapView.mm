@@ -127,7 +127,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     self.styleURL = nil;
 }
 
-+ (NS_ARRAY_OF(NSString *) *)restorableStateKeyPaths {
++ (NSArray *)restorableStateKeyPaths {
     return @[@"zoomLevel", @"direction"];
 }
 
