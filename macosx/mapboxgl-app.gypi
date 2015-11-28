@@ -11,7 +11,6 @@
       'mac_bundle_resources': [
         'Credits.rtf',
         'Icon.icns',
-        'Info.plist',
         'MainMenu.xib',
       ],
 
