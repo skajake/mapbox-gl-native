@@ -587,6 +587,13 @@
                     <outlet property="delegate" destination="Voe-Tx-rLC" id="ciT-Nf-Dtm"/>
                 </connections>
             </toolbar>
+            <connections>
+                <binding destination="Voe-Tx-rLC" name="title" keyPath="mapView.centerCoordinate" id="XFo-sp-PtR">
+                    <dictionary key="options">
+                        <string key="NSValueTransformerName">LocationCoordinate2DTransformer</string>
+                    </dictionary>
+                </binding>
+            </connections>
         </window>
         <window title="Preferences" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" oneShot="NO" releasedWhenClosed="NO" showsToolbarButton="NO" visibleAtLaunch="NO" frameAutosaveName="Preferences" animationBehavior="default" id="UWc-yQ-qda">
             <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES"/>

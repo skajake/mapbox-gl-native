@@ -44,6 +44,7 @@ static NSString * const MGLVendorDirectoryName = @"com.mapbox.MapboxGL";
 
 static NSString * const MGLDefaultStyleMarkerSymbolName = @"default_marker";
 static NSString * const MGLAnnotationSpritePrefix = @"com.mapbox.sprites.";
+const CGFloat MGLAnnotationImagePaddingForCallout = 4;
 
 struct MGLAttribution {
     NSString *title;
@@ -67,6 +68,21 @@ mbgl::LatLng MGLLatLngFromLocationCoordinate2D(CLLocationCoordinate2D coordinate
 
 CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     return CLLocationCoordinate2DMake(latLng.latitude, latLng.longitude);
+}
+
+MGLCoordinateBounds MGLCoordinateBoundsFromLatLngBounds(mbgl::LatLngBounds latLngBounds) {
+    return MGLCoordinateBoundsMake(MGLLocationCoordinate2DFromLatLng(latLngBounds.sw),
+                                   MGLLocationCoordinate2DFromLatLng(latLngBounds.ne));
+}
+
+mbgl::LatLngBounds MGLLatLngBoundsFromCoordinateBounds(MGLCoordinateBounds coordinateBounds) {
+    return mbgl::LatLngBounds(MGLLatLngFromLocationCoordinate2D(coordinateBounds.sw),
+                              MGLLatLngFromLocationCoordinate2D(coordinateBounds.ne));
+}
+
+BOOL MGLCoordinateInCoordinateBounds(CLLocationCoordinate2D coordinate, MGLCoordinateBounds coordinateBounds) {
+    mbgl::LatLngBounds bounds = MGLLatLngBoundsFromCoordinateBounds(coordinateBounds);
+    return bounds.contains(MGLLatLngFromLocationCoordinate2D(coordinate));
 }
 
 mbgl::Color MGLColorObjectFromNSColor(NSColor *color) {
@@ -108,7 +124,7 @@ public:
 
 @end
 
-@interface MGLMapView () <MGLMultiPointDelegate>
+@interface MGLMapView () <NSPopoverDelegate, MGLMultiPointDelegate>
 
 @property (nonatomic, readwrite) NSSegmentedControl *zoomControls;
 @property (nonatomic, readwrite) NSSlider *compass;
@@ -116,6 +132,7 @@ public:
 @property (nonatomic, readwrite) NSView *attributionView;
 
 @property (nonatomic) NS_MUTABLE_DICTIONARY_OF(NSString *, MGLAnnotationImage *) *annotationImagesByIdentifier;
+@property (nonatomic) NSPopover *calloutForSelectedAnnotation;
 
 @property (nonatomic, readwrite, getter=isDormant) BOOL dormant;
 
@@ -134,6 +151,7 @@ public:
     CGFloat _pitchAtBeginningOfGesture;
     
     MGLAnnotationContextMap _annotationContextsByAnnotationID;
+    MGLAnnotationID _selectedAnnotationID;
     BOOL _delegateHasAlphasForShapeAnnotations;
     BOOL _delegateHasStrokeColorsForShapeAnnotations;
     BOOL _delegateHasFillColorsForShapeAnnotations;
@@ -298,6 +316,7 @@ public:
     
     _annotationImagesByIdentifier = [NSMutableDictionary dictionary];
     _annotationContextsByAnnotationID = {};
+    _selectedAnnotationID = MGLAnnotationNotFound;
     
     mbgl::CameraOptions options;
     options.center = mbgl::LatLng(0, 0);
@@ -354,6 +373,9 @@ public:
 
 - (void)dealloc {
     [[MGLAccountManager sharedManager] removeObserver:self forKeyPath:@"accessToken"];
+    
+    [self.calloutForSelectedAnnotation close];
+    self.calloutForSelectedAnnotation = nil;
     
     if (_mbglMap) {
         delete _mbglMap;
@@ -420,6 +442,8 @@ public:
 #pragma mark View hierarchy and drawing
 
 - (void)viewWillMoveToWindow:(NSWindow *)newWindow {
+    [self.calloutForSelectedAnnotation close];
+    self.calloutForSelectedAnnotation = nil;
     if (!self.dormant && !newWindow) {
         self.dormant = YES;
         _mbglMap->pause();
@@ -571,6 +595,7 @@ public:
         case mbgl::MapChangeRegionIsChanging:
         {
             [self updateCompass];
+            [self updateAnnotationCallouts];
             
             if ([self.delegate respondsToSelector:@selector(mapViewRegionIsChanging:)]) {
                 [self.delegate mapViewRegionIsChanging:self];
@@ -582,6 +607,7 @@ public:
         {
             [self updateZoomControls];
             [self updateCompass];
+            [self updateAnnotationCallouts];
             
             if ([self.delegate respondsToSelector:@selector(mapView:regionDidChangeAnimated:)]) {
                 BOOL animated = change == mbgl::MapChangeRegionDidChangeAnimated;
@@ -627,14 +653,18 @@ public:
 }
 
 - (void)setCenterCoordinate:(CLLocationCoordinate2D)centerCoordinate animated:(BOOL)animated {
+    [self willChangeValueForKey:@"centerCoordinate"];
     _mbglMap->setLatLng(MGLLatLngFromLocationCoordinate2D(centerCoordinate),
                         MGLDurationInSeconds(animated ? MGLAnimationDuration : 0));
+    [self didChangeValueForKey:@"centerCoordinate"];
 }
 
 - (void)offsetCenterCoordinateBy:(NSPoint)delta animated:(BOOL)animated {
+    [self willChangeValueForKey:@"centerCoordinate"];
     _mbglMap->cancelTransitions();
     _mbglMap->moveBy({ delta.x, delta.y },
                      MGLDurationInSeconds(animated ? MGLAnimationDuration : 0));
+    [self didChangeValueForKey:@"centerCoordinate"];
 }
 
 - (double)zoomLevel {
@@ -650,8 +680,10 @@ public:
 }
 
 - (void)scaleBy:(double)scaleFactor atPoint:(NSPoint)point animated:(BOOL)animated {
+    [self willChangeValueForKey:@"zoomLevel"];
     mbgl::PrecisionPoint center(point.x, point.y);
     _mbglMap->scaleBy(scaleFactor, center, MGLDurationInSeconds(animated ? MGLAnimationDuration : 0));
+    [self didChangeValueForKey:@"zoomLevel"];
 }
 
 - (double)maximumZoomLevel {
@@ -684,12 +716,59 @@ public:
 }
 
 - (void)setDirection:(CLLocationDirection)direction animated:(BOOL)animated {
+    [self willChangeValueForKey:@"direction"];
     _mbglMap->setBearing(direction, MGLDurationInSeconds(animated ? MGLAnimationDuration : 0));
+    [self didChangeValueForKey:@"direction"];
 }
 
 - (void)offsetDirectionBy:(CLLocationDegrees)delta animated:(BOOL)animated {
+    [self willChangeValueForKey:@"direction"];
     _mbglMap->cancelTransitions();
     _mbglMap->setBearing(_mbglMap->getBearing() + delta, MGLDurationInSeconds(animated ? MGLAnimationDuration : 0));
+    [self didChangeValueForKey:@"direction"];
+}
+
++ (NS_SET_OF(NSString *) *)keyPathsForValuesAffectingVisibleCoordinateBounds {
+    return [NSSet setWithObjects:@"centerCoordinate", @"zoomLevel", @"direction", @"bounds", nil];
+}
+
+- (MGLCoordinateBounds)visibleCoordinateBounds {
+    mbgl::LatLngBounds bounds = mbgl::LatLngBounds::getExtendable();
+
+    bounds.extend(MGLLatLngFromLocationCoordinate2D(
+        [self convertPoint:NSZeroPoint toCoordinateFromView:self]));
+    bounds.extend(MGLLatLngFromLocationCoordinate2D(
+        [self convertPoint:NSMakePoint(self.bounds.size.width, 0) toCoordinateFromView:self]));
+    bounds.extend(MGLLatLngFromLocationCoordinate2D(
+        [self convertPoint:NSMakePoint(0, self.bounds.size.height) toCoordinateFromView:self]));
+    bounds.extend(MGLLatLngFromLocationCoordinate2D(
+        [self convertPoint:NSMakePoint(self.bounds.size.width, self.bounds.size.height) toCoordinateFromView:self]));
+
+    return MGLCoordinateBoundsFromLatLngBounds(bounds);
+}
+
+- (void)setVisibleCoordinateBounds:(MGLCoordinateBounds)bounds {
+    [self setVisibleCoordinateBounds:bounds animated:NO];
+}
+
+- (void)setVisibleCoordinateBounds:(MGLCoordinateBounds)bounds animated:(BOOL)animated {
+    [self setVisibleCoordinateBounds:bounds edgePadding:NSEdgeInsetsZero animated:animated];
+}
+
+- (void)setVisibleCoordinateBounds:(MGLCoordinateBounds)bounds edgePadding:(NSEdgeInsets)insets animated:(BOOL)animated {
+    _mbglMap->cancelTransitions();
+    
+    mbgl::EdgeInsets mbglInsets = {insets.top, insets.left, insets.bottom, insets.right};
+    mbgl::CameraOptions options = _mbglMap->cameraForLatLngBounds(MGLLatLngBoundsFromCoordinateBounds(bounds), mbglInsets);
+    if (animated) {
+        options.duration = MGLDurationInSeconds(MGLAnimationDuration);
+    }
+    
+    [self willChangeValueForKey:@"visibleCoordinateBounds"];
+    options.transitionFinishFn = ^() {
+        [self didChangeValueForKey:@"visibleCoordinateBounds"];
+    };
+    _mbglMap->easeTo(options);
 }
 
 #pragma mark Mouse events and gestures
@@ -736,7 +815,9 @@ public:
             mbgl::PrecisionPoint center(startPoint.x, startPoint.y);
             if (self.rotateEnabled) {
                 CLLocationDirection newDirection = _directionAtBeginningOfGesture - delta.x / 10;
+                [self willChangeValueForKey:@"direction"];
                 _mbglMap->setBearing(newDirection, center);
+                [self didChangeValueForKey:@"direction"];
             }
             if (self.pitchEnabled) {
                 _mbglMap->setPitch(_pitchAtBeginningOfGesture + delta.y / 5);
@@ -777,7 +858,11 @@ public:
         NSPoint zoomInPoint = [gestureRecognizer locationInView:self];
         mbgl::PrecisionPoint center(zoomInPoint.x, self.bounds.size.height - zoomInPoint.y);
         if (gestureRecognizer.magnification > -1) {
+            [self willChangeValueForKey:@"zoomLevel"];
+            [self willChangeValueForKey:@"centerCoordinate"];
             _mbglMap->setScale(_scaleAtBeginningOfGesture * (1 + gestureRecognizer.magnification), center);
+            [self didChangeValueForKey:@"centerCoordinate"];
+            [self didChangeValueForKey:@"zoomLevel"];
         }
     } else if (gestureRecognizer.state == NSGestureRecognizerStateEnded
                || gestureRecognizer.state == NSGestureRecognizerStateCancelled) {
@@ -838,9 +923,13 @@ public:
         if (self.zoomEnabled && std::abs(event.scrollingDeltaX) < std::abs(event.scrollingDeltaY)) {
             _mbglMap->cancelTransitions();
             
+            [self willChangeValueForKey:@"zoomLevel"];
+            [self willChangeValueForKey:@"centerCoordinate"];
             NSPoint gesturePoint = [self convertPoint:event.locationInWindow fromView:nil];
             mbgl::PrecisionPoint center(gesturePoint.x, self.bounds.size.height - gesturePoint.y);
             _mbglMap->scaleBy(exp2(event.scrollingDeltaY / 20), center);
+            [self didChangeValueForKey:@"centerCoordinate"];
+            [self didChangeValueForKey:@"zoomLevel"];
         }
     } else if (self.scrollEnabled
                && _magnificationGestureRecognizer.state == NSGestureRecognizerStatePossible
@@ -1087,17 +1176,149 @@ public:
         
         _annotationContextsByAnnotationID.erase(annotationID);
         
-//        if (annotationID == self.selectedAnnotationID) {
-//            [self deselectAnnotation:annotation animated:NO];
-//        }
+        if (annotationID == _selectedAnnotationID) {
+            [self deselectAnnotation:annotation animated:NO];
+        }
     }
     
     _mbglMap->removeAnnotations(annotationIDsToRemove);
 }
 
+- (id <MGLAnnotation>)selectedAnnotation {
+    if (!_annotationContextsByAnnotationID.count(_selectedAnnotationID)) {
+        return nil;
+    }
+    MGLAnnotationContext &annotationContext = _annotationContextsByAnnotationID.at(_selectedAnnotationID);
+    return annotationContext.annotation;
+}
+
 - (nullable MGLAnnotationImage *)dequeueReusableAnnotationImageWithIdentifier:(NSString *)identifier {
     return self.annotationImagesByIdentifier[identifier];
 }
+
+- (NS_ARRAY_OF(id <MGLAnnotation>) *)selectedAnnotations {
+    return self.selectedAnnotation ? @[self.selectedAnnotation] : @[];
+}
+
+- (void)setSelectedAnnotation:(id <MGLAnnotation>)selectedAnnotation {
+    _selectedAnnotationID = [self annotationIDForAnnotation:selectedAnnotation];
+}
+
+- (void)setSelectedAnnotations:(NS_ARRAY_OF(id <MGLAnnotation>) *)selectedAnnotations {
+    if (!selectedAnnotations.count) {
+        return;
+    }
+    
+    id <MGLAnnotation> firstAnnotation = selectedAnnotations[0];
+    NSAssert([firstAnnotation conformsToProtocol:@protocol(MGLAnnotation)], @"Annotation does not conform to MGLAnnotation");
+    if ([firstAnnotation isKindOfClass:[MGLMultiPoint class]]) {
+        return;
+    }
+    
+    if (MGLCoordinateInCoordinateBounds(firstAnnotation.coordinate, self.visibleCoordinateBounds)) {
+        [self selectAnnotation:firstAnnotation animated:NO];
+    }
+}
+
+- (void)selectAnnotation:(id <MGLAnnotation>)annotation animated:(BOOL)animated
+{
+    if (!annotation
+        || [annotation isKindOfClass:[MGLMultiPoint class]]
+        || !MGLCoordinateInCoordinateBounds(annotation.coordinate, self.visibleCoordinateBounds)) {
+        return;
+    }
+    
+    id <MGLAnnotation> selectedAnnotation = self.selectedAnnotation;
+    if (annotation == selectedAnnotation) {
+        return;
+    }
+    
+    [self deselectAnnotation:selectedAnnotation animated:NO];
+    
+    MGLAnnotationID annotationID = [self annotationIDForAnnotation:annotation];
+    if (annotationID == MGLAnnotationNotFound) {
+        [self addAnnotation:annotation];
+    }
+    _selectedAnnotationID = annotationID;
+    
+    if ([annotation respondsToSelector:@selector(title)]
+        && annotation.title
+        && !self.calloutForSelectedAnnotation.shown
+        && [self.delegate respondsToSelector:@selector(mapView:annotationCanShowCallout:)]
+        && [self.delegate mapView:self annotationCanShowCallout:annotation]) {
+        NSPopover *callout = [self calloutForAnnotation:annotation];
+        callout.animates = animated;
+        
+        callout.delegate = self;
+        self.calloutForSelectedAnnotation = callout;
+        NSRect positioningRect = [self positioningRectForCalloutForAnnotationWithID:annotationID];
+        [callout showRelativeToRect:positioningRect ofView:self preferredEdge:NSRectEdgeMaxX];
+    }
+    
+    if ([self.delegate respondsToSelector:@selector(mapView:didSelectAnnotation:)]) {
+        [self.delegate mapView:self didSelectAnnotation:annotation];
+    }
+}
+
+- (NSPopover *)calloutForAnnotation:(id <MGLAnnotation>)annotation {
+    NSPopover *callout = [[NSPopover alloc] init];
+    callout.behavior = NSPopoverBehaviorTransient;
+    
+    NSViewController *viewController = [[NSViewController alloc] initWithNibName:@"MGLAnnotationCallout"
+                                                                          bundle:[NSBundle mgl_resourceBundle]];
+    NSAssert(viewController, @"Unable to load MGLAnnotationCallout view controller");
+    viewController.representedObject = annotation;
+    callout.contentViewController = viewController;
+    
+    return callout;
+}
+
+- (NSRect)positioningRectForCalloutForAnnotationWithID:(MGLAnnotationID)annotationID {
+    id <MGLAnnotation> annotation = [self annotationWithID:annotationID];
+    if (!annotation) {
+        return NSZeroRect;
+    }
+    
+    NSString *customSymbol = _annotationContextsByAnnotationID.at(annotationID).symbolIdentifier;
+    if ([customSymbol hasPrefix:MGLAnnotationSpritePrefix]) {
+        customSymbol = [customSymbol substringFromIndex:MGLAnnotationSpritePrefix.length];
+    }
+    NSString *symbolName = customSymbol.length ? customSymbol : MGLDefaultStyleMarkerSymbolName;
+    
+    NSPoint calloutAnchorPoint = [self convertCoordinate:annotation.coordinate toPointToView:self];
+    
+    MGLAnnotationImage *annotationImage = [self dequeueReusableAnnotationImageWithIdentifier:symbolName];
+    NSSize annotationSize = annotationImage.image.size;
+    NSRect annotationRect = NSMakeRect(calloutAnchorPoint.x - annotationSize.width / 2, calloutAnchorPoint.y,
+                                       annotationSize.width, annotationSize.height / 2);
+    return NSInsetRect(annotationRect, -MGLAnnotationImagePaddingForCallout, 0);
+}
+
+- (void)deselectAnnotation:(id <MGLAnnotation>)annotation animated:(BOOL)animated {
+    if (!annotation || self.selectedAnnotation != annotation) {
+        return;
+    }
+    
+    NSPopover *callout = self.calloutForSelectedAnnotation;
+    callout.animates = animated;
+    [callout performClose:self];
+    
+    self.calloutForSelectedAnnotation = nil;
+    self.selectedAnnotation = nil;
+    
+    if ([self.delegate respondsToSelector:@selector(mapView:didDeselectAnnotation:)]) {
+        [self.delegate mapView:self didDeselectAnnotation:annotation];
+    }
+}
+
+- (void)updateAnnotationCallouts {
+    NSPopover *callout = self.calloutForSelectedAnnotation;
+    if (callout) {
+        callout.positioningRect = [self positioningRectForCalloutForAnnotationWithID:_selectedAnnotationID];
+    }
+}
+
+#pragma mark MGLMultiPointDelegate methods
 
 - (double)alphaForShapeAnnotation:(MGLShape *)annotation {
     if (_delegateHasAlphasForShapeAnnotations) {
@@ -1127,6 +1348,8 @@ public:
     return 3.0;
 }
 
+#pragma mark Overlays
+
 - (void)addOverlay:(id <MGLOverlay>)overlay {
     [self addOverlays:@[overlay]];
 }
@@ -1153,7 +1376,7 @@ public:
 #pragma mark Geometric methods
 
 - (CLLocationCoordinate2D)convertPoint:(NSPoint)point toCoordinateFromView:(nullable NSView *)view {
-    CGPoint convertedPoint = [self convertPoint:point fromView:view];
+    NSPoint convertedPoint = [self convertPoint:point fromView:view];
     return MGLLocationCoordinate2DFromLatLng(_mbglMap->latLngForPixel(mbgl::PrecisionPoint(convertedPoint.x, convertedPoint.y)));
 }
 

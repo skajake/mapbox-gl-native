@@ -1,6 +1,7 @@
 #import <Cocoa/Cocoa.h>
 #import <CoreLocation/CoreLocation.h>
 
+#import "MGLGeometry.h"
 #import "MGLTypes.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -47,6 +48,8 @@ typedef NS_OPTIONS(NSUInteger, MGLMapDebugMaskOptions) {
 
 - (void)setDirection:(CLLocationDirection)direction animated:(BOOL)animated;
 
+@property (nonatomic) MGLCoordinateBounds visibleCoordinateBounds;
+
 @property (nonatomic, getter=isScrollEnabled) BOOL scrollEnabled;
 @property (nonatomic, getter=isZoomEnabled) BOOL zoomEnabled;
 @property (nonatomic, getter=isRotateEnabled) BOOL rotateEnabled;
@@ -60,6 +63,11 @@ typedef NS_OPTIONS(NSUInteger, MGLMapDebugMaskOptions) {
 - (void)removeAnnotations:(NS_ARRAY_OF(id <MGLAnnotation>) *)annotations;
 
 - (nullable MGLAnnotationImage *)dequeueReusableAnnotationImageWithIdentifier:(NSString *)identifier;
+
+@property (nonatomic, copy) NS_ARRAY_OF(id <MGLAnnotation>) *selectedAnnotations;
+
+- (void)selectAnnotation:(id <MGLAnnotation>)annotation animated:(BOOL)animated;
+- (void)deselectAnnotation:(id <MGLAnnotation>)annotation animated:(BOOL)animated;
 
 - (void)addOverlay:(id <MGLOverlay>)overlay;
 - (void)addOverlays:(NS_ARRAY_OF(id <MGLOverlay>) *)overlays;

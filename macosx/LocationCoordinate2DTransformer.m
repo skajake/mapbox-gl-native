@@ -1,10 +1,10 @@
-#import "LocationCoordinate2DFormatter.h"
+#import "LocationCoordinate2DTransformer.h"
 
 #import "NSValue+Additions.h"
 
 NSString *StringFromDegrees(CLLocationDegrees degrees, char positiveDirection, char negativeDirection) {
-    double minutes = (degrees - floor(degrees)) / 60;
-    double seconds = (minutes - floor(minutes)) / 60;
+    double minutes = (degrees - floor(degrees)) * 60;
+    double seconds = (minutes - floor(minutes)) * 60;
     
     NSMutableString *string = [NSMutableString stringWithFormat:@"%.0f°", fabs(degrees)];
     if (floor(minutes) || floor(seconds)) {
@@ -19,20 +19,24 @@ NSString *StringFromDegrees(CLLocationDegrees degrees, char positiveDirection, c
     return string;
 }
 
-@implementation LocationCoordinate2DFormatter
+@implementation LocationCoordinate2DTransformer
 
-- (NSString *)stringForObjectValue:(id)obj {
-    if (![obj isKindOfClass:[NSValue class]]) {
++ (Class)transformedValueClass {
+    return [NSString class];
+}
+
++ (BOOL)allowsReverseTransformation {
+    return NO;
+}
+
+- (id)transformedValue:(id)value {
+    if (![value isKindOfClass:[NSValue class]]) {
         return nil;
     }
-    CLLocationCoordinate2D coordinate = [obj CLLocationCoordinate2DValue];
+    CLLocationCoordinate2D coordinate = [value CLLocationCoordinate2DValue];
     return [NSString stringWithFormat:@"%@, %@",
             StringFromDegrees(coordinate.latitude, 'N', 'S'),
             StringFromDegrees(coordinate.longitude, 'E', 'W')];
-}
-
-- (BOOL)getObjectValue:(out id _Nullable __autoreleasing *)obj forString:(NSString *)string errorDescription:(out NSString *__autoreleasing _Nullable *)error {
-    NSAssert(NO, @"Not implemented.");
 }
 
 @end

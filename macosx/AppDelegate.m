@@ -1,12 +1,7 @@
-//
-//  AppDelegate.m
-//  osxapp
-//
-//  Created by Minh Nguyen on 2015-11-21.
-//  Copyright © 2015 Mapbox. All rights reserved.
-//
-
 #import "AppDelegate.h"
+
+#import "LocationCoordinate2DTransformer.h"
+#import "NSValue+Additions.h"
 
 #import <mbgl/osx/Mapbox.h>
 
@@ -267,10 +262,12 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
     MGLPointAnnotation *annotation = [[MGLPointAnnotation alloc] init];
     annotation.coordinate = [self.mapView convertPoint:point toCoordinateFromView:self.mapView];
     annotation.title = @"Dropped Pin";
-    annotation.subtitle = [NSString stringWithFormat:@"%.3f, %.3f",
-                           annotation.coordinate.latitude, annotation.coordinate.longitude];
+    NSValueTransformer *xformer = [NSValueTransformer valueTransformerForName:
+                                   NSStringFromClass([LocationCoordinate2DTransformer class])];
+    annotation.subtitle = [xformer transformedValue:
+                           [NSValue valueWithCLLocationCoordinate2D:annotation.coordinate]];
     [self.mapView addAnnotation:annotation];
-//    [self.mapView selectAnnotation:point animated:YES];
+    [self.mapView selectAnnotation:annotation animated:YES];
 }
 
 #pragma mark User interface validation
@@ -424,6 +421,10 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
 }
 
 #pragma mark MGLMapViewDelegate methods
+
+- (BOOL)mapView:(MGLMapView *)mapView annotationCanShowCallout:(id <MGLAnnotation>)annotation {
+    return YES;
+}
 
 @end
 
