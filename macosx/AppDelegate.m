@@ -12,16 +12,21 @@
 
 static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken";
 
-@interface AppDelegate () <NSSharingServicePickerDelegate>
+@interface AppDelegate () <NSSharingServicePickerDelegate, NSMenuDelegate, MGLMapViewDelegate>
 
 @property (weak) IBOutlet NSWindow *window;
 @property (weak) IBOutlet MGLMapView *mapView;
+@property (weak) IBOutlet NSMenu *mapViewContextMenu;
 
 @property (weak) IBOutlet NSWindow *preferencesWindow;
 
 @end
 
-@implementation AppDelegate
+@implementation AppDelegate {
+    NSPoint _mouseLocationForMapViewContextMenu;
+}
+
+#pragma mark Lifecycle
 
 + (void)load {
     // Set access token, unless MGLAccountManager already read it in from Info.plist.
@@ -62,6 +67,9 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
         [alert runModal];
         [self showPreferences:nil];
     }
+    
+    NSPressGestureRecognizer *pressGestureRecognizer = [[NSPressGestureRecognizer alloc] initWithTarget:self action:@selector(handlePressGesture:)];
+    [self.mapView addGestureRecognizer:pressGestureRecognizer];
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification {
@@ -76,6 +84,8 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
         [self reload:self];
     }
 }
+
+#pragma mark Services
 
 - (void)handleGetURLEvent:(NSAppleEventDescriptor *)event withReplyEvent:(NSAppleEventDescriptor *)replyEvent {
     NSURL *url = [NSURL URLWithString:[event paramDescriptorForKeyword:keyDirectObject].stringValue];
@@ -121,6 +131,8 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
              components[1], components[2], [MGLAccountManager accessToken],
              self.mapView.zoomLevel, centerCoordinate.latitude, centerCoordinate.longitude, self.mapView.direction]];
 }
+
+#pragma mark View methods
 
 - (IBAction)setStyle:(id)sender {
     NSInteger tag;
@@ -212,6 +224,8 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
     self.mapView.debugMask ^= MGLMapDebugCollisionBoxesMask;
 }
 
+#pragma mark Help methods
+
 - (IBAction)showShortcuts:(id)sender {
     NSAlert *alert = [[NSAlert alloc] init];
     alert.messageText = @"Mapbox GL Help";
@@ -238,6 +252,30 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
 - (IBAction)openAccessTokenManager:(id)sender {
     [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"https://www.mapbox.com/studio/account/tokens/"]];
 }
+
+#pragma mark Mouse events
+
+- (void)handlePressGesture:(NSPressGestureRecognizer *)gestureRecognizer {
+    MGLPointAnnotation *point = [[MGLPointAnnotation alloc] init];
+    point.coordinate = [self.mapView convertPoint:[gestureRecognizer locationInView:self.mapView]
+                             toCoordinateFromView:self.mapView];
+    point.title = @"Dropped Marker";
+    point.subtitle = [NSString stringWithFormat:@"%.3f, %.3f", point.coordinate.latitude, point.coordinate.longitude];
+    [self.mapView addAnnotation:point];
+//    [self.mapView selectAnnotation:point animated:YES];
+}
+
+- (IBAction)dropPin:(NSMenuItem *)sender {
+    MGLPointAnnotation *point = [[MGLPointAnnotation alloc] init];
+    point.coordinate = [self.mapView convertPoint:_mouseLocationForMapViewContextMenu
+                             toCoordinateFromView:self.mapView];
+    point.title = @"Dropped Marker";
+    point.subtitle = [NSString stringWithFormat:@"%.3f, %.3f", point.coordinate.latitude, point.coordinate.longitude];
+    [self.mapView addAnnotation:point];
+//    [self.mapView selectAnnotation:point animated:YES];
+}
+
+#pragma mark User interface validation
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     if (menuItem.action == @selector(setStyle:)) {
@@ -282,6 +320,9 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
         return self.mapView.direction != 0;
     }
     if (menuItem.action == @selector(reload:)) {
+        return YES;
+    }
+    if (menuItem.action == @selector(dropPin:)) {
         return YES;
     }
     if (menuItem.action == @selector(toggleTileBoundaries:)) {
@@ -375,6 +416,16 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
     [sharingServices insertObject:browserService atIndex:0];
     return sharingServices;
 }
+
+#pragma mark NSMenuDelegate methods
+
+- (void)menuWillOpen:(NSMenu *)menu {
+    if (menu == self.mapViewContextMenu) {
+        _mouseLocationForMapViewContextMenu = self.window.mouseLocationOutsideOfEventStream;
+    }
+}
+
+#pragma mark MGLMapViewDelegate methods
 
 @end
 

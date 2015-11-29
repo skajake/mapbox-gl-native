@@ -5,6 +5,10 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class MGLMapView;
+@class MGLAnnotationImage;
+@class MGLPolygon;
+@class MGLPolyline;
+@class MGLShape;
 
 @protocol MGLMapViewDelegate <NSObject>
 
@@ -16,6 +20,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)mapViewWillStartLoadingMap:(MGLMapView *)mapView;
 - (void)mapViewDidFinishLoadingMap:(MGLMapView *)mapView;
+
+- (nullable MGLAnnotationImage *)mapView:(MGLMapView *)mapView imageForAnnotation:(id <MGLAnnotation>)annotation;
+- (CGFloat)mapView:(MGLMapView *)mapView alphaForShapeAnnotation:(MGLShape *)annotation;
+- (NSColor *)mapView:(MGLMapView *)mapView strokeColorForShapeAnnotation:(MGLShape *)annotation;
+- (NSColor *)mapView:(MGLMapView *)mapView fillColorForPolygonAnnotation:(MGLPolygon *)annotation;
+- (CGFloat)mapView:(MGLMapView *)mapView lineWidthForPolylineAnnotation:(MGLPolyline *)annotation;
 
 @end
 

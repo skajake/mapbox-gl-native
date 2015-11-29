@@ -26,6 +26,7 @@
 #include <mbgl/util/default_styles.hpp>
 
 #import "Mapbox.h"
+#import "../darwin/MGLMultiPoint_Private.h"
 
 #import "NSBundle+MGLAdditions.h"
 #import "NSString+MGLAdditions.h"
@@ -72,13 +73,25 @@ mbgl::util::UnitBezier MGLUnitBezierForMediaTimingFunction(CAMediaTimingFunction
     return { p1[0], p1[1], p2[0], p2[1] };
 }
 
+mbgl::Color MGLColorObjectFromUIColor(UIColor *color)
+{
+    if (!color)
+    {
+        return {{ 0, 0, 0, 0 }};
+    }
+    CGFloat r, g, b, a;
+    [color getRed:&r green:&g blue:&b alpha:&a];
+    return {{ (float)r, (float)g, (float)b, (float)a }};
+}
+
 #pragma mark - Private -
 
 @interface MGLMapView () <UIGestureRecognizerDelegate,
                           GLKViewDelegate,
                           CLLocationManagerDelegate,
                           UIActionSheetDelegate,
-                          SMCalloutViewDelegate>
+                          SMCalloutViewDelegate,
+                          MGLMultiPointDelegate>
 
 @property (nonatomic) EAGLContext *context;
 @property (nonatomic) GLKView *glView;
@@ -129,6 +142,11 @@ mbgl::util::UnitBezier MGLUnitBezierForMediaTimingFunction(CAMediaTimingFunction
     BOOL _needsDisplayRefresh;
     
     NSUInteger _changeDelimiterSuppressionDepth;
+    
+    BOOL _delegateHasAlphasForShapeAnnotations;
+    BOOL _delegateHasStrokeColorsForShapeAnnotations;
+    BOOL _delegateHasFillColorsForShapeAnnotations;
+    BOOL _delegateHasLineWidthsForShapeAnnotations;
 }
 
 #pragma mark - Setup & Teardown -
@@ -475,6 +493,11 @@ std::chrono::steady_clock::duration durationInSeconds(float duration)
          @"Implement -[%@ mapView:imageForAnnotation:] instead.",
          NSStringFromClass([delegate class]), NSStringFromClass([delegate class])];
     }
+    
+    _delegateHasAlphasForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:alphaForShapeAnnotation:)];
+    _delegateHasStrokeColorsForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:strokeColorForShapeAnnotation:)];
+    _delegateHasFillColorsForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:fillColorForPolygonAnnotation:)];
+    _delegateHasLineWidthsForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:lineWidthForPolylineAnnotation:)];
 }
 
 #pragma mark - Layout -
@@ -2105,10 +2128,6 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng)
     std::vector<mbgl::ShapeAnnotation> shapes;
 
     BOOL delegateImplementsImageForPoint = [self.delegate respondsToSelector:@selector(mapView:imageForAnnotation:)];
-    BOOL delegateImplementsAlphaForShape = [self.delegate respondsToSelector:@selector(mapView:alphaForShapeAnnotation:)];
-    BOOL delegateImplementsStrokeColorForShape = [self.delegate respondsToSelector:@selector(mapView:strokeColorForShapeAnnotation:)];
-    BOOL delegateImplementsFillColorForPolygon = [self.delegate respondsToSelector:@selector(mapView:fillColorForPolygonAnnotation:)];
-    BOOL delegateImplementsLineWidthForPolyline = [self.delegate respondsToSelector:@selector(mapView:lineWidthForPolylineAnnotation:)];
 
     for (id <MGLAnnotation> annotation in annotations)
     {
@@ -2116,81 +2135,15 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng)
 
         if ([annotation isKindOfClass:[MGLMultiPoint class]])
         {
-            NSUInteger count = [(MGLMultiPoint *)annotation pointCount];
-
-            if (count == 0) break;
-
-            CGFloat alpha = (delegateImplementsAlphaForShape ?
-                                [self.delegate mapView:self alphaForShapeAnnotation:annotation] :
-                                1.0);
-
-            UIColor *strokeColor = (delegateImplementsStrokeColorForShape ?
-                                [self.delegate mapView:self strokeColorForShapeAnnotation:annotation] :
-                                [UIColor blackColor]);
-
-            assert(strokeColor);
-
-            CGFloat r,g,b,a;
-            [strokeColor getRed:&r green:&g blue:&b alpha:&a];
-            mbgl::Color strokeNativeColor({{ (float)r, (float)g, (float)b, (float)a }});
-
-            mbgl::ShapeAnnotation::Properties shapeProperties;
-
-            if ([annotation isKindOfClass:[MGLPolyline class]])
-            {
-                CGFloat lineWidth = (delegateImplementsLineWidthForPolyline ?
-                                [self.delegate mapView:self lineWidthForPolylineAnnotation:(MGLPolyline *)annotation] :
-                                3.0);
-
-                mbgl::LineAnnotationProperties lineProperties;
-                lineProperties.opacity = alpha;
-                lineProperties.color = strokeNativeColor;
-                lineProperties.width = lineWidth;
-                shapeProperties.set<mbgl::LineAnnotationProperties>(lineProperties);
-
-            }
-            else if ([annotation isKindOfClass:[MGLPolygon class]])
-            {
-                UIColor *fillColor = (delegateImplementsFillColorForPolygon ?
-                                [self.delegate mapView:self fillColorForPolygonAnnotation:(MGLPolygon *)annotation] :
-                                [UIColor blueColor]);
-
-                assert(fillColor);
-
-                [fillColor getRed:&r green:&g blue:&b alpha:&a];
-                mbgl::Color fillNativeColor({{ (float)r, (float)g, (float)b, (float)a }});
-
-                mbgl::FillAnnotationProperties fillProperties;
-                fillProperties.opacity = alpha;
-                fillProperties.outlineColor = strokeNativeColor;
-                fillProperties.color = fillNativeColor;
-                shapeProperties.set<mbgl::FillAnnotationProperties>(fillProperties);
-            }
-            else
-            {
-                [[NSException exceptionWithName:@"MGLUnknownShapeClassException"
-                                         reason:[NSString stringWithFormat:@"%@ is an unknown shape class", [annotation class]]
-                                       userInfo:nil] raise];
-            }
-
-            CLLocationCoordinate2D *coordinates = (CLLocationCoordinate2D *)malloc(count * sizeof(CLLocationCoordinate2D));
-            [(MGLMultiPoint *)annotation getCoordinates:coordinates range:NSMakeRange(0, count)];
-
-            mbgl::AnnotationSegment segment;
-            segment.reserve(count);
-
-            for (NSUInteger i = 0; i < count; i++)
-            {
-                segment.push_back(mbgl::LatLng(coordinates[i].latitude, coordinates[i].longitude));
-            }
-
-            free(coordinates);
-
-            shapes.emplace_back(mbgl::AnnotationSegments {{ segment }}, shapeProperties);
+            [(MGLMultiPoint *)annotation addShapeAnnotationObjectToCollection:shapes withDelegate:self];
         }
         else
         {
             MGLAnnotationImage *annotationImage = delegateImplementsImageForPoint ? [self.delegate mapView:self imageForAnnotation:annotation] : nil;
+            if ( ! annotationImage)
+            {
+                annotationImage = [self dequeueReusableAnnotationImageWithIdentifier:MGLDefaultStyleMarkerSymbolName];
+            }
             if ( ! annotationImage)
             {
                 UIImage *defaultAnnotationImage = [MGLMapView resourceImageNamed:MGLDefaultStyleMarkerSymbolName];
@@ -2235,6 +2188,40 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng)
                                                forKey:annotations[i]];
         }
     }
+}
+
+- (double)alphaForShapeAnnotation:(MGLShape *)annotation
+{
+    if (_delegateHasAlphasForShapeAnnotations)
+    {
+        return [self.delegate mapView:self alphaForShapeAnnotation:annotation];
+    }
+    return 1.0;
+}
+
+- (mbgl::Color)strokeColorForShapeAnnotation:(MGLShape *)annotation
+{
+    UIColor *color = (_delegateHasStrokeColorsForShapeAnnotations
+                      ? [self.delegate mapView:self strokeColorForShapeAnnotation:annotation]
+                      : [UIColor blackColor]);
+    return MGLColorObjectFromUIColor(color);
+}
+
+- (mbgl::Color)fillColorForPolygonAnnotation:(MGLPolygon *)annotation
+{
+    UIColor *color = (_delegateHasFillColorsForShapeAnnotations
+                      ? [self.delegate mapView:self fillColorForPolygonAnnotation:annotation]
+                      : [UIColor blueColor]);
+    return MGLColorObjectFromUIColor(color);
+}
+
+- (CGFloat)lineWidthForPolylineAnnotation:(MGLPolyline *)annotation
+{
+    if (_delegateHasLineWidthsForShapeAnnotations)
+    {
+        return [self.delegate mapView:self lineWidthForPolylineAnnotation:(MGLPolyline *)annotation];
+    }
+    return 3.0;
 }
 
 - (void)installAnnotationImage:(MGLAnnotationImage *)annotationImage

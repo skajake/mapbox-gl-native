@@ -14,6 +14,7 @@
         <customObject id="Voe-Tx-rLC" customClass="AppDelegate">
             <connections>
                 <outlet property="mapView" destination="v1Z-oA-oHU" id="70S-xO-QIP"/>
+                <outlet property="mapViewContextMenu" destination="6rZ-M1-uTn" id="wl2-03-9Z8"/>
                 <outlet property="preferencesWindow" destination="UWc-yQ-qda" id="Ota-aT-Mz2"/>
                 <outlet property="window" destination="QvC-M9-y7g" id="gIp-Ho-8D9"/>
             </connections>
@@ -511,6 +512,10 @@
                 <subviews>
                     <customView translatesAutoresizingMaskIntoConstraints="NO" id="v1Z-oA-oHU" customClass="MGLMapView">
                         <rect key="frame" x="0.0" y="0.0" width="512" height="360"/>
+                        <connections>
+                            <outlet property="delegate" destination="Voe-Tx-rLC" id="qJ7-fL-iw1"/>
+                            <outlet property="menu" destination="6rZ-M1-uTn" id="4sB-UN-zuc"/>
+                        </connections>
                     </customView>
                 </subviews>
                 <constraints>
@@ -645,6 +650,20 @@
             <point key="canvasLocation" x="754" y="210"/>
         </window>
         <userDefaultsController representsSharedInstance="YES" id="45S-yT-WUN"/>
+        <menu title="Map View" id="6rZ-M1-uTn">
+            <items>
+                <menuItem title="Drop Pin" id="fxQ-3P-E7l">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <connections>
+                        <action selector="dropPin:" target="Voe-Tx-rLC" id="eDR-iw-JUG"/>
+                    </connections>
+                </menuItem>
+            </items>
+            <connections>
+                <outlet property="delegate" destination="Voe-Tx-rLC" id="MsV-YU-f4X"/>
+            </connections>
+            <point key="canvasLocation" x="820" y="254.5"/>
+        </menu>
     </objects>
     <resources>
         <image name="NSFollowLinkFreestandingTemplate" width="14" height="14"/>

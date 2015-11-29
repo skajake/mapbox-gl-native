@@ -25,6 +25,10 @@
       'sources': [
         './AppDelegate.h',
         './AppDelegate.m',
+        './LocationCoordinate2DFormatter.h',
+        './LocationCoordinate2DFormatter.m',
+        './NSValue+Additions.h',
+        './NSValue+Additions.m',
         './main.m',
       ],
 

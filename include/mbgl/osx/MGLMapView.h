@@ -12,11 +12,17 @@ typedef NS_OPTIONS(NSUInteger, MGLMapDebugMaskOptions) {
     MGLMapDebugCollisionBoxesMask = 1 << 4,
 };
 
+@class MGLAnnotationImage;
+
+@protocol MGLAnnotation;
 @protocol MGLMapViewDelegate;
+@protocol MGLOverlay;
 
 @interface MGLMapView : NSView
 
 - (instancetype)initWithFrame:(CGRect)frame styleURL:(nullable NSURL *)styleURL;
+
+@property (nonatomic, weak, nullable) IBOutlet id <MGLMapViewDelegate> delegate;
 
 @property (nonatomic, null_resettable) NSURL *styleURL;
 
@@ -46,7 +52,23 @@ typedef NS_OPTIONS(NSUInteger, MGLMapDebugMaskOptions) {
 @property (nonatomic, getter=isRotateEnabled) BOOL rotateEnabled;
 @property (nonatomic, getter=isPitchEnabled) BOOL pitchEnabled;
 
-@property (nonatomic, weak, nullable) IBOutlet id <MGLMapViewDelegate> delegate;
+@property (nonatomic, readonly, nullable) NS_ARRAY_OF(id <MGLAnnotation>) *annotations;
+
+- (void)addAnnotation:(id <MGLAnnotation>)annotation;
+- (void)addAnnotations:(NS_ARRAY_OF(id <MGLAnnotation>) *)annotations;
+- (void)removeAnnotation:(id <MGLAnnotation>)annotation;
+- (void)removeAnnotations:(NS_ARRAY_OF(id <MGLAnnotation>) *)annotations;
+
+- (nullable MGLAnnotationImage *)dequeueReusableAnnotationImageWithIdentifier:(NSString *)identifier;
+
+- (void)addOverlay:(id <MGLOverlay>)overlay;
+- (void)addOverlays:(NS_ARRAY_OF(id <MGLOverlay>) *)overlays;
+- (void)removeOverlay:(id <MGLOverlay>)overlay;
+- (void)removeOverlays:(NS_ARRAY_OF(id <MGLOverlay>) *)overlays;
+
+- (CLLocationCoordinate2D)convertPoint:(NSPoint)point toCoordinateFromView:(nullable NSView *)view;
+- (NSPoint)convertCoordinate:(CLLocationCoordinate2D)coordinate toPointToView:(nullable NSView *)view;
+- (CLLocationDistance)metersPerPixelAtLatitude:(CLLocationDegrees)latitude;
 
 @property (nonatomic) MGLMapDebugMaskOptions debugMask;
 

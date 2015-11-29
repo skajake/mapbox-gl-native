@@ -1,18 +1,29 @@
 #import "MGLMapView_Private.h"
-#import <mbgl/osx/MGLMapViewDelegate.h>
 #import "MGLAccountManager_Private.h"
 #import "MGLOpenGLLayer.h"
 #import "MGLStyle.h"
 
+#import "../darwin/MGLMultiPoint_Private.h"
+
+#import <mbgl/darwin/MGLPolygon.h>
+#import <mbgl/darwin/MGLPolyline.h>
+#import <mbgl/osx/MGLAnnotationImage.h>
+#import <mbgl/osx/MGLMapViewDelegate.h>
+
 #import <mbgl/mbgl.hpp>
+#import <mbgl/annotation/point_annotation.hpp>
+#import <mbgl/annotation/shape_annotation.hpp>
 #import <mbgl/map/camera.hpp>
 #import <mbgl/platform/darwin/reachability.h>
 #import <mbgl/platform/gl.hpp>
+#import <mbgl/sprite/sprite_image.hpp>
 #import <mbgl/storage/default_file_source.hpp>
 #import <mbgl/storage/network_status.hpp>
 #import <mbgl/storage/sqlite_cache.hpp>
 #import <mbgl/util/math.hpp>
 #import <mbgl/util/constants.hpp>
+
+#import <map>
 
 #import "NSBundle+MGLAdditions.h"
 #import "../darwin/NSException+MGLAdditions.h"
@@ -20,7 +31,8 @@
 
 #import <QuartzCore/QuartzCore.h>
 
-class MBGLView;
+class MGLMapViewImpl;
+class MGLAnnotationContext;
 
 const CGFloat MGLOrnamentPadding = 12;
 
@@ -30,6 +42,9 @@ const CLLocationDegrees MGLKeyRotationIncrement = 25;
 
 static NSString * const MGLVendorDirectoryName = @"com.mapbox.MapboxGL";
 
+static NSString * const MGLDefaultStyleMarkerSymbolName = @"default_marker";
+static NSString * const MGLAnnotationSpritePrefix = @"com.mapbox.sprites.";
+
 struct MGLAttribution {
     NSString *title;
     NSString *urlString;
@@ -37,6 +52,10 @@ struct MGLAttribution {
     { @"Mapbox", @"https://www.mapbox.com/about/maps/" },
     { @"OpenStreetMap", @"http://www.openstreetmap.org/about/" },
 };
+
+typedef uint32_t MGLAnnotationID;
+enum { MGLAnnotationNotFound = UINT32_MAX };
+typedef std::map<MGLAnnotationID, MGLAnnotationContext> MGLAnnotationContextMap;
 
 std::chrono::steady_clock::duration MGLDurationInSeconds(float duration) {
     return std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<float, std::chrono::seconds::period>(duration));
@@ -49,6 +68,21 @@ mbgl::LatLng MGLLatLngFromLocationCoordinate2D(CLLocationCoordinate2D coordinate
 CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     return CLLocationCoordinate2DMake(latLng.latitude, latLng.longitude);
 }
+
+mbgl::Color MGLColorObjectFromNSColor(NSColor *color) {
+    if (!color) {
+        return {{ 0, 0, 0, 0 }};
+    }
+    CGFloat r, g, b, a;
+    [color getRed:&r green:&g blue:&b alpha:&a];
+    return {{ (float)r, (float)g, (float)b, (float)a }};
+}
+
+class MGLAnnotationContext {
+public:
+    id <MGLAnnotation> annotation;
+    NSString *symbolIdentifier;
+};
 
 @interface MGLCompassCell : NSSliderCell
 
@@ -74,12 +108,14 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 
 @end
 
-@interface MGLMapView ()
+@interface MGLMapView () <MGLMultiPointDelegate>
 
 @property (nonatomic, readwrite) NSSegmentedControl *zoomControls;
 @property (nonatomic, readwrite) NSSlider *compass;
 @property (nonatomic, readwrite) NSImageView *logoView;
 @property (nonatomic, readwrite) NSView *attributionView;
+
+@property (nonatomic) NS_MUTABLE_DICTIONARY_OF(NSString *, MGLAnnotationImage *) *annotationImagesByIdentifier;
 
 @property (nonatomic, readwrite, getter=isDormant) BOOL dormant;
 
@@ -87,7 +123,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 
 @implementation MGLMapView {
     mbgl::Map *_mbglMap;
-    MBGLView *_mbglView;
+    MGLMapViewImpl *_mbglView;
     std::shared_ptr<mbgl::SQLiteCache> _mbglFileCache;
     mbgl::DefaultFileSource *_mbglFileSource;
     
@@ -96,7 +132,15 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     double _scaleAtBeginningOfGesture;
     CLLocationDirection _directionAtBeginningOfGesture;
     CGFloat _pitchAtBeginningOfGesture;
+    
+    MGLAnnotationContextMap _annotationContextsByAnnotationID;
+    BOOL _delegateHasAlphasForShapeAnnotations;
+    BOOL _delegateHasStrokeColorsForShapeAnnotations;
+    BOOL _delegateHasFillColorsForShapeAnnotations;
+    BOOL _delegateHasLineWidthsForShapeAnnotations;
 }
+
+#pragma mark Lifecycle
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
     if (self = [super initWithFrame:frameRect]) {
@@ -132,7 +176,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 }
 
 - (void)commonInit {
-    _mbglView = new MBGLView(self, [NSScreen mainScreen].backingScaleFactor);
+    _mbglView = new MGLMapViewImpl(self, [NSScreen mainScreen].backingScaleFactor);
     
     // Place the cache in a location that can be shared among all the
     // applications that embed the Mapbox OS X SDK.
@@ -252,6 +296,9 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     _rotationGestureRecognizer = [[NSRotationGestureRecognizer alloc] initWithTarget:self action:@selector(handleRotationGesture:)];
     [self addGestureRecognizer:_rotationGestureRecognizer];
     
+    _annotationImagesByIdentifier = [NSMutableDictionary dictionary];
+    _annotationContextsByAnnotationID = {};
+    
     mbgl::CameraOptions options;
     options.center = mbgl::LatLng(0, 0);
     options.zoom = _mbglMap->getMinZoom();
@@ -332,6 +379,17 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     }
 }
 
+- (void)setDelegate:(id<MGLMapViewDelegate>)delegate {
+    _delegate = delegate;
+    
+    _delegateHasAlphasForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:alphaForShapeAnnotation:)];
+    _delegateHasStrokeColorsForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:strokeColorForShapeAnnotation:)];
+    _delegateHasFillColorsForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:fillColorForPolygonAnnotation:)];
+    _delegateHasLineWidthsForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:lineWidthForPolylineAnnotation:)];
+}
+
+#pragma mark Style
+
 - (nonnull NSURL *)styleURL {
     NSString *styleURLString = @(_mbglMap->getStyleURL().c_str()).mgl_stringOrNilIfEmpty;
     return styleURLString ? [NSURL URLWithString:styleURLString] : [MGLStyle streetsStyleURL];
@@ -358,6 +416,8 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     _mbglMap->setStyleURL("");
     self.styleURL = styleURL;
 }
+
+#pragma mark View hierarchy and drawing
 
 - (void)viewWillMoveToWindow:(NSWindow *)newWindow {
     if (!self.dormant && !newWindow) {
@@ -556,6 +616,8 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     }
 }
 
+#pragma mark Viewport
+
 - (CLLocationCoordinate2D)centerCoordinate {
     return MGLLocationCoordinate2DFromLatLng(_mbglMap->getLatLng());
 }
@@ -629,6 +691,8 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     _mbglMap->cancelTransitions();
     _mbglMap->setBearing(_mbglMap->getBearing() + delta, MGLDurationInSeconds(animated ? MGLAnimationDuration : 0));
 }
+
+#pragma mark Mouse events and gestures
 
 - (BOOL)acceptsFirstResponder {
     return YES;
@@ -795,6 +859,8 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     }
 }
 
+#pragma mark Keyboard events
+
 - (void)keyDown:(NSEvent *)event {
     if (event.modifierFlags & NSNumericPadKeyMask) {
         [self interpretKeyEvents:@[event]];
@@ -855,6 +921,8 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     _compass.hidden = !rotateEnabled;
 }
 
+#pragma mark Ornaments
+
 - (IBAction)openAttribution:(NSButton *)sender {
     [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:sender.toolTip]];
 }
@@ -871,6 +939,234 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
 - (IBAction)rotate:(NSSlider *)sender {
     [self setDirection:-sender.doubleValue animated:YES];
 }
+
+#pragma mark Annotations
+
+- (nullable NS_ARRAY_OF(id <MGLAnnotation>) *)annotations {
+    if (_annotationContextsByAnnotationID.empty()) {
+        return nil;
+    }
+    
+    std::vector<id <MGLAnnotation> > annotations;
+    std::transform(_annotationContextsByAnnotationID.begin(),
+                   _annotationContextsByAnnotationID.end(),
+                   std::back_inserter(annotations),
+                   ^ id <MGLAnnotation> (const std::pair<MGLAnnotationID, MGLAnnotationContext> &pair) {
+                       return pair.second.annotation;
+                   });
+    return [NSArray arrayWithObjects:&annotations[0] count:annotations.size()];
+}
+
+- (id <MGLAnnotation>)annotationWithID:(MGLAnnotationID)annotationID {
+    if (!_annotationContextsByAnnotationID.count(annotationID)) {
+        return nil;
+    }
+    
+    MGLAnnotationContext &annotationContext = _annotationContextsByAnnotationID[annotationID];
+    return annotationContext.annotation;
+}
+
+- (MGLAnnotationID)annotationIDForAnnotation:(id <MGLAnnotation>)annotation {
+    for (auto &pair : _annotationContextsByAnnotationID) {
+        if (pair.second.annotation == annotation) {
+            return pair.first;
+        }
+    }
+    return MGLAnnotationNotFound;
+}
+
+- (void)addAnnotation:(id <MGLAnnotation>)annotation {
+    if (annotation) {
+        [self addAnnotations:@[annotation]];
+    }
+}
+
+- (void)addAnnotations:(NS_ARRAY_OF(id <MGLAnnotation>) *)annotations {
+    if (!annotations) {
+        return;
+    }
+    
+    BOOL delegateHasImagesForAnnotations = [self.delegate respondsToSelector:@selector(mapView:imageForAnnotation:)];
+    
+    std::vector<mbgl::PointAnnotation> points;
+    std::vector<mbgl::ShapeAnnotation> shapes;
+    
+    for (id <MGLAnnotation> annotation in annotations) {
+        NSAssert([annotation conformsToProtocol:@protocol(MGLAnnotation)], @"Annotation does not conform to MGLAnnotation");
+        
+        if ([annotation isKindOfClass:[MGLMultiPoint class]]) {
+            [(MGLMultiPoint *)annotation addShapeAnnotationObjectToCollection:shapes withDelegate:self];
+        } else {
+            MGLAnnotationImage *annotationImage = nil;
+            if (delegateHasImagesForAnnotations) {
+                annotationImage = [self.delegate mapView:self imageForAnnotation:annotation];
+            }
+            if (!annotationImage) {
+                annotationImage = [self dequeueReusableAnnotationImageWithIdentifier:MGLDefaultStyleMarkerSymbolName];
+            }
+            if (!annotationImage) {
+                NSImage *defaultAnnotationImage = [[NSImage alloc] initWithContentsOfFile:
+                                                   [[NSBundle mgl_resourceBundle] pathForResource:MGLDefaultStyleMarkerSymbolName ofType:@"pdf"]];
+                annotationImage = [MGLAnnotationImage annotationImageWithImage:defaultAnnotationImage
+                                                               reuseIdentifier:MGLDefaultStyleMarkerSymbolName];
+            }
+            
+            if (!self.annotationImagesByIdentifier[annotationImage.reuseIdentifier]) {
+                self.annotationImagesByIdentifier[annotationImage.reuseIdentifier] = annotationImage;
+                [self installAnnotationImage:annotationImage];
+            }
+            
+            NSString *symbolName = [MGLAnnotationSpritePrefix stringByAppendingString:annotationImage.reuseIdentifier];
+            points.emplace_back(MGLLatLngFromLocationCoordinate2D(annotation.coordinate), symbolName ? [symbolName UTF8String] : "");
+        }
+    }
+    
+    if (points.size()) {
+        std::vector<MGLAnnotationID> pointAnnotationIDs = _mbglMap->addPointAnnotations(points);
+        
+        for (size_t i = 0; i < pointAnnotationIDs.size(); ++i) {
+            MGLAnnotationContext context;
+            context.annotation = annotations[i];
+            context.symbolIdentifier = @(points[i].icon.c_str());
+            _annotationContextsByAnnotationID[pointAnnotationIDs[i]] = context;
+        }
+    }
+    
+    if (shapes.size()) {
+        std::vector<MGLAnnotationID> shapeAnnotationIDs = _mbglMap->addShapeAnnotations(shapes);
+        
+        for (size_t i = 0; i < shapeAnnotationIDs.size(); ++i) {
+            MGLAnnotationContext context;
+            context.annotation = annotations[i];
+            _annotationContextsByAnnotationID[shapeAnnotationIDs[i]] = context;
+        }
+    }
+}
+
+- (void)installAnnotationImage:(MGLAnnotationImage *)annotationImage {
+    NSImage *image = annotationImage.image;
+    NSSize size = image.size;
+    if (size.width < 1 || size.height < 1 || !image.valid) {
+        return;
+    }
+    
+    // http://www.cocoabuilder.com/archive/cocoa/82430-nsimage-getting-raw-bitmap-data.html#82431
+    [image lockFocus];
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithFocusedViewRect:{ NSZeroPoint, size }];
+    [image unlockFocus];
+    
+    std::string pixelString((const char *)rep.bitmapData, rep.pixelsWide * rep.pixelsHigh * 4 /* RGBA */);
+    auto cSpriteImage = std::make_shared<mbgl::SpriteImage>((uint16_t)rep.size.width,
+                                                            (uint16_t)rep.size.height,
+                                                            (float)(rep.pixelsWide / size.width),
+                                                            std::move(pixelString));
+    NSString *symbolName = [MGLAnnotationSpritePrefix stringByAppendingString:annotationImage.reuseIdentifier];
+    _mbglMap->setSprite(symbolName.UTF8String, cSpriteImage);
+}
+
+- (void)removeAnnotation:(id <MGLAnnotation>)annotation {
+    if (annotation) {
+        [self removeAnnotations:@[annotation]];
+    }
+}
+
+- (void)removeAnnotations:(NS_ARRAY_OF(id <MGLAnnotation>) *)annotations {
+    if (!annotations) {
+        return;
+    }
+    
+    std::vector<MGLAnnotationID> annotationIDsToRemove;
+    annotationIDsToRemove.reserve(annotations.count);
+    
+    for (id <MGLAnnotation> annotation in annotations) {
+        NSAssert([annotation conformsToProtocol:@protocol(MGLAnnotation)], @"Annotation does not conform to MGLAnnotation");
+        
+        MGLAnnotationID annotationID = [self annotationIDForAnnotation:annotation];
+        NSAssert(annotationID != MGLAnnotationNotFound, @"No ID for annotation %@", annotation);
+        annotationIDsToRemove.push_back(annotationID);
+        
+        _annotationContextsByAnnotationID.erase(annotationID);
+        
+//        if (annotationID == self.selectedAnnotationID) {
+//            [self deselectAnnotation:annotation animated:NO];
+//        }
+    }
+    
+    _mbglMap->removeAnnotations(annotationIDsToRemove);
+}
+
+- (nullable MGLAnnotationImage *)dequeueReusableAnnotationImageWithIdentifier:(NSString *)identifier {
+    return self.annotationImagesByIdentifier[identifier];
+}
+
+- (double)alphaForShapeAnnotation:(MGLShape *)annotation {
+    if (_delegateHasAlphasForShapeAnnotations) {
+        return [self.delegate mapView:self alphaForShapeAnnotation:annotation];
+    }
+    return 1.0;
+}
+
+- (mbgl::Color)strokeColorForShapeAnnotation:(MGLShape *)annotation {
+    NSColor *color = (_delegateHasStrokeColorsForShapeAnnotations
+                      ? [self.delegate mapView:self strokeColorForShapeAnnotation:annotation]
+                      : [NSColor blackColor]);
+    return MGLColorObjectFromNSColor(color);
+}
+
+- (mbgl::Color)fillColorForPolygonAnnotation:(MGLPolygon *)annotation {
+    NSColor *color = (_delegateHasFillColorsForShapeAnnotations
+                      ? [self.delegate mapView:self fillColorForPolygonAnnotation:annotation]
+                      : [NSColor blueColor]);
+    return MGLColorObjectFromNSColor(color);
+}
+
+- (CGFloat)lineWidthForPolylineAnnotation:(MGLPolyline *)annotation {
+    if (_delegateHasLineWidthsForShapeAnnotations) {
+        return [self.delegate mapView:self lineWidthForPolylineAnnotation:(MGLPolyline *)annotation];
+    }
+    return 3.0;
+}
+
+- (void)addOverlay:(id <MGLOverlay>)overlay {
+    [self addOverlays:@[overlay]];
+}
+
+- (void)addOverlays:(NS_ARRAY_OF(id <MGLOverlay>) *)overlays
+{
+    for (id <MGLOverlay> overlay in overlays) {
+        NSAssert([overlay conformsToProtocol:@protocol(MGLOverlay)], @"Overlay does not conform to MGLOverlay");
+    }
+    [self addAnnotations:overlays];
+}
+
+- (void)removeOverlay:(id <MGLOverlay>)overlay {
+    [self removeOverlays:@[overlay]];
+}
+
+- (void)removeOverlays:(NS_ARRAY_OF(id <MGLOverlay>) *)overlays {
+    for (id <MGLOverlay> overlay in overlays) {
+        NSAssert([overlay conformsToProtocol:@protocol(MGLOverlay)], @"Overlay does not conform to MGLOverlay");
+    }
+    [self removeAnnotations:overlays];
+}
+
+#pragma mark Geometric methods
+
+- (CLLocationCoordinate2D)convertPoint:(NSPoint)point toCoordinateFromView:(nullable NSView *)view {
+    CGPoint convertedPoint = [self convertPoint:point fromView:view];
+    return MGLLocationCoordinate2DFromLatLng(_mbglMap->latLngForPixel(mbgl::PrecisionPoint(convertedPoint.x, convertedPoint.y)));
+}
+
+- (NSPoint)convertCoordinate:(CLLocationCoordinate2D)coordinate toPointToView:(nullable NSView *)view {
+    mbgl::vec2<double> pixel = _mbglMap->pixelForLatLng(MGLLatLngFromLocationCoordinate2D(coordinate));
+    return [self convertPoint:NSMakePoint(pixel.x, pixel.y) toView:view];
+}
+
+- (CLLocationDistance)metersPerPixelAtLatitude:(CLLocationDegrees)latitude {
+    return _mbglMap->getMetersPerPixelAtLatitude(latitude, self.zoomLevel);
+}
+
+#pragma mark Debugging
 
 - (MGLMapDebugMaskOptions)debugMask {
     mbgl::MapDebugOptions options = _mbglMap->getDebug();
@@ -907,11 +1203,11 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
     _mbglMap->setDebug(options);
 }
 
-class MBGLView : public mbgl::View {
+class MGLMapViewImpl : public mbgl::View {
 public:
-    MBGLView(MGLMapView *nativeView_, const float scaleFactor_)
+    MGLMapViewImpl(MGLMapView *nativeView_, const float scaleFactor_)
         : nativeView(nativeView_), scaleFactor(scaleFactor_) {}
-    virtual ~MBGLView() {}
+    virtual ~MGLMapViewImpl() {}
     
     
     float getPixelRatio() const override {
