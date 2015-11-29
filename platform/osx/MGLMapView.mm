@@ -155,7 +155,7 @@ public:
     
     MGLAnnotationContextMap _annotationContextsByAnnotationID;
     MGLAnnotationID _selectedAnnotationID;
-    NSSize _maximumAnnotationImageSize;
+    NSRect _unionedAnnotationImageAlignmentRect;
     std::vector<MGLAnnotationID> _annotationsNearbyLastClick;
     BOOL _delegateHasAlphasForShapeAnnotations;
     BOOL _delegateHasStrokeColorsForShapeAnnotations;
@@ -326,7 +326,7 @@ public:
     _annotationImagesByIdentifier = [NSMutableDictionary dictionary];
     _annotationContextsByAnnotationID = {};
     _selectedAnnotationID = MGLAnnotationNotFound;
-    _maximumAnnotationImageSize = NSZeroSize;
+    _unionedAnnotationImageAlignmentRect = NSZeroRect;
     
     mbgl::CameraOptions options;
     options.center = mbgl::LatLng(0, 0);
@@ -871,9 +871,8 @@ public:
 
 - (void)handleClickGesture:(NSClickGestureRecognizer *)gestureRecognizer {
     NSPoint gesturePoint = [gestureRecognizer locationInView:self];
-    NSRect hitRect = NSOffsetRect({ gesturePoint, _maximumAnnotationImageSize },
-                                  -_maximumAnnotationImageSize.width / 2,
-                                  -_maximumAnnotationImageSize.height / 2);
+    NSRect hitRect = NSOffsetRect(_unionedAnnotationImageAlignmentRect,
+                                  gesturePoint.x, gesturePoint.y);
     hitRect = NSInsetRect(hitRect, -MGLAnnotationImagePaddingForHitTest,
                           -MGLAnnotationImagePaddingForHitTest);
     mbgl::LatLngBounds hitBounds = [self convertRectToLatLngBounds:hitRect];
@@ -1149,9 +1148,13 @@ public:
                 annotationImage = [self dequeueReusableAnnotationImageWithIdentifier:MGLDefaultStyleMarkerSymbolName];
             }
             if (!annotationImage) {
-                NSImage *defaultAnnotationImage = [[NSImage alloc] initWithContentsOfFile:
-                                                   [[NSBundle mgl_resourceBundle] pathForResource:MGLDefaultStyleMarkerSymbolName ofType:@"pdf"]];
-                annotationImage = [MGLAnnotationImage annotationImageWithImage:defaultAnnotationImage
+                NSImage *image = [[NSImage alloc] initWithContentsOfFile:
+                                  [[NSBundle mgl_resourceBundle] pathForResource:MGLDefaultStyleMarkerSymbolName
+                                                                          ofType:@"pdf"]];
+                NSRect alignmentRect = image.alignmentRect;
+                alignmentRect.size.height /= 2;
+                image.alignmentRect = alignmentRect;
+                annotationImage = [MGLAnnotationImage annotationImageWithImage:image
                                                                reuseIdentifier:MGLDefaultStyleMarkerSymbolName];
             }
             
@@ -1207,8 +1210,12 @@ public:
     NSString *symbolName = [MGLAnnotationSpritePrefix stringByAppendingString:annotationImage.reuseIdentifier];
     _mbglMap->setSprite(symbolName.UTF8String, cSpriteImage);
     
-    _maximumAnnotationImageSize = NSUnionRect({ NSZeroPoint, _maximumAnnotationImageSize },
-                                              { NSZeroPoint, size }).size;
+    // Center the alignment rect around what will be the center of the
+    // annotation, then union it with all existing alignment rects.
+    NSRect alignmentRect = image.alignmentRect;
+    alignmentRect = NSOffsetRect(alignmentRect, -size.width / 2, -size.height / 2);
+    _unionedAnnotationImageAlignmentRect = NSUnionRect(_unionedAnnotationImageAlignmentRect,
+                                                       alignmentRect);
 }
 
 - (void)removeAnnotation:(id <MGLAnnotation>)annotation {
@@ -1483,7 +1490,7 @@ public:
     if (bounds.sw.longitude > -180) {
         outsideLatLng = {
             (bounds.sw.latitude + bounds.ne.latitude) / 2,
-            bounds.sw.longitude + 1,
+            bounds.sw.longitude - 1,
         };
     } else if (bounds.ne.longitude < 180) {
         outsideLatLng = {
