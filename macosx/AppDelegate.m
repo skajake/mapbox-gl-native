@@ -256,22 +256,20 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
 #pragma mark Mouse events
 
 - (void)handlePressGesture:(NSPressGestureRecognizer *)gestureRecognizer {
-    MGLPointAnnotation *point = [[MGLPointAnnotation alloc] init];
-    point.coordinate = [self.mapView convertPoint:[gestureRecognizer locationInView:self.mapView]
-                             toCoordinateFromView:self.mapView];
-    point.title = @"Dropped Marker";
-    point.subtitle = [NSString stringWithFormat:@"%.3f, %.3f", point.coordinate.latitude, point.coordinate.longitude];
-    [self.mapView addAnnotation:point];
-//    [self.mapView selectAnnotation:point animated:YES];
+    [self dropPinAtPoint:[gestureRecognizer locationInView:self.mapView]];
 }
 
 - (IBAction)dropPin:(NSMenuItem *)sender {
-    MGLPointAnnotation *point = [[MGLPointAnnotation alloc] init];
-    point.coordinate = [self.mapView convertPoint:_mouseLocationForMapViewContextMenu
-                             toCoordinateFromView:self.mapView];
-    point.title = @"Dropped Marker";
-    point.subtitle = [NSString stringWithFormat:@"%.3f, %.3f", point.coordinate.latitude, point.coordinate.longitude];
-    [self.mapView addAnnotation:point];
+    [self dropPinAtPoint:_mouseLocationForMapViewContextMenu];
+}
+
+- (void)dropPinAtPoint:(NSPoint)point {
+    MGLPointAnnotation *annotation = [[MGLPointAnnotation alloc] init];
+    annotation.coordinate = [self.mapView convertPoint:point toCoordinateFromView:self.mapView];
+    annotation.title = @"Dropped Pin";
+    annotation.subtitle = [NSString stringWithFormat:@"%.3f, %.3f",
+                           annotation.coordinate.latitude, annotation.coordinate.longitude];
+    [self.mapView addAnnotation:annotation];
 //    [self.mapView selectAnnotation:point animated:YES];
 }
 
