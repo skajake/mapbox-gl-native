@@ -1264,8 +1264,14 @@ public:
     NSPopover *callout = [[NSPopover alloc] init];
     callout.behavior = NSPopoverBehaviorTransient;
     
-    NSViewController *viewController = [[NSViewController alloc] initWithNibName:@"MGLAnnotationCallout"
-                                                                          bundle:[NSBundle mgl_resourceBundle]];
+    NSViewController *viewController;
+    if ([self.delegate respondsToSelector:@selector(mapView:calloutViewControllerForAnnotation:)]) {
+        viewController = [self.delegate mapView:self calloutViewControllerForAnnotation:annotation];
+    }
+    if (!viewController) {
+        viewController = [[NSViewController alloc] initWithNibName:@"MGLAnnotationCallout"
+                                                            bundle:[NSBundle mgl_resourceBundle]];
+    }
     NSAssert(viewController, @"Unable to load MGLAnnotationCallout view controller");
     viewController.representedObject = annotation;
     callout.contentViewController = viewController;
