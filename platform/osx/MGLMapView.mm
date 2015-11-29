@@ -20,10 +20,12 @@
 #import <mbgl/storage/default_file_source.hpp>
 #import <mbgl/storage/network_status.hpp>
 #import <mbgl/storage/sqlite_cache.hpp>
-#import <mbgl/util/math.hpp>
 #import <mbgl/util/constants.hpp>
+#import <mbgl/util/math.hpp>
+#import <mbgl/util/std.hpp>
 
 #import <map>
+#import <unordered_set>
 
 #import "NSBundle+MGLAdditions.h"
 #import "../darwin/NSException+MGLAdditions.h"
@@ -44,6 +46,7 @@ static NSString * const MGLVendorDirectoryName = @"com.mapbox.MapboxGL";
 
 static NSString * const MGLDefaultStyleMarkerSymbolName = @"default_marker";
 static NSString * const MGLAnnotationSpritePrefix = @"com.mapbox.sprites.";
+const CGFloat MGLAnnotationImagePaddingForHitTest = 4;
 const CGFloat MGLAnnotationImagePaddingForCallout = 4;
 
 struct MGLAttribution {
@@ -152,6 +155,8 @@ public:
     
     MGLAnnotationContextMap _annotationContextsByAnnotationID;
     MGLAnnotationID _selectedAnnotationID;
+    NSSize _maximumAnnotationImageSize;
+    std::vector<MGLAnnotationID> _annotationsNearbyLastClick;
     BOOL _delegateHasAlphasForShapeAnnotations;
     BOOL _delegateHasStrokeColorsForShapeAnnotations;
     BOOL _delegateHasFillColorsForShapeAnnotations;
@@ -299,6 +304,10 @@ public:
     panGestureRecognizer.delaysKeyEvents = YES;
     [self addGestureRecognizer:panGestureRecognizer];
     
+    NSClickGestureRecognizer *clickGestureRecognizer = [[NSClickGestureRecognizer alloc] initWithTarget:self action:@selector(handleClickGesture:)];
+    clickGestureRecognizer.delaysPrimaryMouseButtonEvents = NO;
+    [self addGestureRecognizer:clickGestureRecognizer];
+    
     NSClickGestureRecognizer *secondaryClickGestureRecognizer = [[NSClickGestureRecognizer alloc] initWithTarget:self action:@selector(handleSecondaryClickGesture:)];
     secondaryClickGestureRecognizer.buttonMask = 0x2;
     [self addGestureRecognizer:secondaryClickGestureRecognizer];
@@ -317,6 +326,7 @@ public:
     _annotationImagesByIdentifier = [NSMutableDictionary dictionary];
     _annotationContextsByAnnotationID = {};
     _selectedAnnotationID = MGLAnnotationNotFound;
+    _maximumAnnotationImageSize = NSZeroSize;
     
     mbgl::CameraOptions options;
     options.center = mbgl::LatLng(0, 0);
@@ -733,18 +743,7 @@ public:
 }
 
 - (MGLCoordinateBounds)visibleCoordinateBounds {
-    mbgl::LatLngBounds bounds = mbgl::LatLngBounds::getExtendable();
-
-    bounds.extend(MGLLatLngFromLocationCoordinate2D(
-        [self convertPoint:NSZeroPoint toCoordinateFromView:self]));
-    bounds.extend(MGLLatLngFromLocationCoordinate2D(
-        [self convertPoint:NSMakePoint(self.bounds.size.width, 0) toCoordinateFromView:self]));
-    bounds.extend(MGLLatLngFromLocationCoordinate2D(
-        [self convertPoint:NSMakePoint(0, self.bounds.size.height) toCoordinateFromView:self]));
-    bounds.extend(MGLLatLngFromLocationCoordinate2D(
-        [self convertPoint:NSMakePoint(self.bounds.size.width, self.bounds.size.height) toCoordinateFromView:self]));
-
-    return MGLCoordinateBoundsFromLatLngBounds(bounds);
+    return [self convertRectToCoordinateBounds:self.bounds];
 }
 
 - (void)setVisibleCoordinateBounds:(MGLCoordinateBounds)bounds {
@@ -867,6 +866,58 @@ public:
     } else if (gestureRecognizer.state == NSGestureRecognizerStateEnded
                || gestureRecognizer.state == NSGestureRecognizerStateCancelled) {
         _mbglMap->setGestureInProgress(false);
+    }
+}
+
+- (void)handleClickGesture:(NSClickGestureRecognizer *)gestureRecognizer {
+    NSPoint gesturePoint = [gestureRecognizer locationInView:self];
+    NSRect hitRect = NSOffsetRect({ gesturePoint, _maximumAnnotationImageSize },
+                                  -_maximumAnnotationImageSize.width / 2,
+                                  -_maximumAnnotationImageSize.height / 2);
+    hitRect = NSInsetRect(hitRect, -MGLAnnotationImagePaddingForHitTest,
+                          -MGLAnnotationImagePaddingForHitTest);
+    mbgl::LatLngBounds hitBounds = [self convertRectToLatLngBounds:hitRect];
+    std::vector<MGLAnnotationID> nearbyAnnotations = _mbglMap->getPointAnnotationsInBounds(hitBounds);
+    
+    if (nearbyAnnotations.size()) {
+        mbgl::util::erase_if(nearbyAnnotations, [&](const MGLAnnotationID annotationID) {
+            NSAssert(_annotationContextsByAnnotationID.count(annotationID) != 0, @"Unknown annotation found nearby click");
+            NSString *customSymbol = _annotationContextsByAnnotationID[annotationID].symbolIdentifier;
+            NSString *symbolName = customSymbol.length ? customSymbol : MGLDefaultStyleMarkerSymbolName;
+            MGLAnnotationImage *annotationImage = [self dequeueReusableAnnotationImageWithIdentifier:symbolName];
+            return !annotationImage.selectable;
+        });
+    }
+    
+    MGLAnnotationID hitAnnotationID = MGLAnnotationNotFound;
+    if (nearbyAnnotations.size()) {
+        std::sort(nearbyAnnotations.begin(), nearbyAnnotations.end());
+        
+        if (nearbyAnnotations == _annotationsNearbyLastClick) {
+            if (_selectedAnnotationID == _annotationsNearbyLastClick.back()
+                || _selectedAnnotationID == MGLAnnotationNotFound) {
+                hitAnnotationID = _annotationsNearbyLastClick.front();
+            } else {
+                auto result = std::find(_annotationsNearbyLastClick.begin(),
+                                        _annotationsNearbyLastClick.end(),
+                                        _selectedAnnotationID);
+                auto distance = std::distance(_annotationsNearbyLastClick.begin(), result);
+                hitAnnotationID = _annotationsNearbyLastClick[distance + 1];
+            }
+        } else {
+            _annotationsNearbyLastClick = nearbyAnnotations;
+            hitAnnotationID = _annotationsNearbyLastClick.front();
+        }
+    }
+    
+    if (hitAnnotationID != MGLAnnotationNotFound) {
+        if (hitAnnotationID != _selectedAnnotationID) {
+            id <MGLAnnotation> annotation = [self annotationWithID:hitAnnotationID];
+            NSAssert(annotation, @"Cannot select nonexistent annotation with ID %i", hitAnnotationID);
+            [self selectAnnotation:annotation animated:YES];
+        }
+    } else {
+        [self deselectAnnotation:self.selectedAnnotation animated:YES];
     }
 }
 
@@ -1056,6 +1107,10 @@ public:
 }
 
 - (MGLAnnotationID)annotationIDForAnnotation:(id <MGLAnnotation>)annotation {
+    if (!annotation) {
+        return MGLAnnotationNotFound;
+    }
+    
     for (auto &pair : _annotationContextsByAnnotationID) {
         if (pair.second.annotation == annotation) {
             return pair.first;
@@ -1151,6 +1206,9 @@ public:
                                                             std::move(pixelString));
     NSString *symbolName = [MGLAnnotationSpritePrefix stringByAppendingString:annotationImage.reuseIdentifier];
     _mbglMap->setSprite(symbolName.UTF8String, cSpriteImage);
+    
+    _maximumAnnotationImageSize = NSUnionRect({ NSZeroPoint, _maximumAnnotationImageSize },
+                                              { NSZeroPoint, size }).size;
 }
 
 - (void)removeAnnotation:(id <MGLAnnotation>)annotation {
@@ -1193,6 +1251,9 @@ public:
 }
 
 - (nullable MGLAnnotationImage *)dequeueReusableAnnotationImageWithIdentifier:(NSString *)identifier {
+    if ([identifier hasPrefix:MGLAnnotationSpritePrefix]) {
+        identifier = [identifier substringFromIndex:MGLAnnotationSpritePrefix.length];
+    }
     return self.annotationImagesByIdentifier[identifier];
 }
 
@@ -1252,7 +1313,10 @@ public:
         callout.delegate = self;
         self.calloutForSelectedAnnotation = callout;
         NSRect positioningRect = [self positioningRectForCalloutForAnnotationWithID:annotationID];
-        [callout showRelativeToRect:positioningRect ofView:self preferredEdge:NSRectEdgeMaxX];
+        NSRectEdge edge = (self.userInterfaceLayoutDirection == NSUserInterfaceLayoutDirectionRightToLeft
+                           ? NSRectEdgeMinX
+                           : NSRectEdgeMaxX);
+        [callout showRelativeToRect:positioningRect ofView:self preferredEdge:edge];
     }
     
     if ([self.delegate respondsToSelector:@selector(mapView:didSelectAnnotation:)]) {
@@ -1286,9 +1350,6 @@ public:
     }
     
     NSString *customSymbol = _annotationContextsByAnnotationID.at(annotationID).symbolIdentifier;
-    if ([customSymbol hasPrefix:MGLAnnotationSpritePrefix]) {
-        customSymbol = [customSymbol substringFromIndex:MGLAnnotationSpritePrefix.length];
-    }
     NSString *symbolName = customSymbol.length ? customSymbol : MGLDefaultStyleMarkerSymbolName;
     
     NSPoint calloutAnchorPoint = [self convertCoordinate:annotation.coordinate toPointToView:self];
@@ -1354,6 +1415,13 @@ public:
     return 3.0;
 }
 
+#pragma mark MGLPopoverDelegate methods
+
+- (void)popoverDidClose:(__unused NSNotification *)notification {
+    self.calloutForSelectedAnnotation = nil;
+    self.selectedAnnotation = nil;
+}
+
 #pragma mark Overlays
 
 - (void)addOverlay:(id <MGLOverlay>)overlay {
@@ -1382,13 +1450,53 @@ public:
 #pragma mark Geometric methods
 
 - (CLLocationCoordinate2D)convertPoint:(NSPoint)point toCoordinateFromView:(nullable NSView *)view {
+    return MGLLocationCoordinate2DFromLatLng([self convertPoint:point toLatLngFromView:view]);
+}
+
+- (mbgl::LatLng)convertPoint:(NSPoint)point toLatLngFromView:(nullable NSView *)view {
     NSPoint convertedPoint = [self convertPoint:point fromView:view];
-    return MGLLocationCoordinate2DFromLatLng(_mbglMap->latLngForPixel(mbgl::PrecisionPoint(convertedPoint.x, convertedPoint.y)));
+    return _mbglMap->latLngForPixel(mbgl::PrecisionPoint(convertedPoint.x, convertedPoint.y));
 }
 
 - (NSPoint)convertCoordinate:(CLLocationCoordinate2D)coordinate toPointToView:(nullable NSView *)view {
-    mbgl::vec2<double> pixel = _mbglMap->pixelForLatLng(MGLLatLngFromLocationCoordinate2D(coordinate));
+    return [self convertLatLng:MGLLatLngFromLocationCoordinate2D(coordinate) toPointToView:view];
+}
+
+- (NSPoint)convertLatLng:(mbgl::LatLng)latLng toPointToView:(nullable NSView *)view {
+    mbgl::vec2<double> pixel = _mbglMap->pixelForLatLng(latLng);
     return [self convertPoint:NSMakePoint(pixel.x, pixel.y) toView:view];
+}
+
+- (MGLCoordinateBounds)convertRectToCoordinateBounds:(NSRect)rect {
+    return MGLCoordinateBoundsFromLatLngBounds([self convertRectToLatLngBounds:rect]);
+}
+
+- (mbgl::LatLngBounds)convertRectToLatLngBounds:(NSRect)rect {
+    mbgl::LatLngBounds bounds = mbgl::LatLngBounds::getExtendable();
+    bounds.extend([self convertPoint:{ NSMinX(rect), NSMinY(rect) } toLatLngFromView:self]);
+    bounds.extend([self convertPoint:{ NSMaxX(rect), NSMinY(rect) } toLatLngFromView:self]);
+    bounds.extend([self convertPoint:{ NSMaxX(rect), NSMaxY(rect) } toLatLngFromView:self]);
+    bounds.extend([self convertPoint:{ NSMinX(rect), NSMaxY(rect) } toLatLngFromView:self]);
+    
+    // If the world is wrapping, extend the bounds to cover all longitudes.
+    mbgl::LatLng outsideLatLng;
+    if (bounds.sw.longitude > -180) {
+        outsideLatLng = {
+            (bounds.sw.latitude + bounds.ne.latitude) / 2,
+            bounds.sw.longitude + 1,
+        };
+    } else if (bounds.ne.longitude < 180) {
+        outsideLatLng = {
+            (bounds.sw.latitude + bounds.ne.latitude) / 2,
+            bounds.ne.longitude + 1,
+        };
+    }
+    if (NSPointInRect([self convertLatLng:outsideLatLng toPointToView:self], rect)) {
+        bounds.sw.longitude = -180;
+        bounds.ne.longitude = 180;
+    }
+    
+    return bounds;
 }
 
 - (CLLocationDistance)metersPerPixelAtLatitude:(CLLocationDegrees)latitude {
