@@ -207,7 +207,7 @@ public:
     _zoomControls = [[NSSegmentedControl alloc] initWithFrame:NSZeroRect];
     _zoomControls.wantsLayer = YES;
     _zoomControls.layer.opacity = 0.9;
-    _zoomControls.trackingMode = NSSegmentSwitchTrackingMomentary;
+    [(NSSegmentedCell *)_zoomControls.cell setTrackingMode:NSSegmentSwitchTrackingMomentary];
     _zoomControls.continuous = YES;
     _zoomControls.segmentCount = 2;
     [_zoomControls setLabel:@"−" forSegment:0];
