@@ -738,7 +738,7 @@ public:
     [self didChangeValueForKey:@"direction"];
 }
 
-+ (NS_SET_OF(NSString *) *)keyPathsForValuesAffectingVisibleCoordinateBounds {
++ (NSSet *)keyPathsForValuesAffectingVisibleCoordinateBounds {
     return [NSSet setWithObjects:@"centerCoordinate", @"zoomLevel", @"direction", @"bounds", nil];
 }
 
@@ -1321,8 +1321,8 @@ public:
         self.calloutForSelectedAnnotation = callout;
         NSRect positioningRect = [self positioningRectForCalloutForAnnotationWithID:annotationID];
         NSRectEdge edge = (self.userInterfaceLayoutDirection == NSUserInterfaceLayoutDirectionRightToLeft
-                           ? NSRectEdgeMinX
-                           : NSRectEdgeMaxX);
+                           ? NSMinXEdge
+                           : NSMaxXEdge);
         [callout showRelativeToRect:positioningRect ofView:self preferredEdge:edge];
     }
     

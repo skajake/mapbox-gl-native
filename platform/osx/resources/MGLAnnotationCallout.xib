@@ -15,7 +15,7 @@
             <rect key="frame" x="0.0" y="0.0" width="270" height="50"/>
             <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
             <subviews>
-                <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="k5x-ao-Pz3">
+                <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" setsMaxLayoutWidthAtFirstLayout="YES" translatesAutoresizingMaskIntoConstraints="NO" id="k5x-ao-Pz3">
                     <rect key="frame" x="18" y="25" width="234" height="17"/>
                     <textFieldCell key="cell" selectable="YES" sendsActionOnEndEditing="YES" title="Title" id="nVE-Zi-KcG">
                         <font key="font" metaFont="system"/>
@@ -26,7 +26,7 @@
                         <binding destination="-2" name="value" keyPath="representedObject.title" id="3nD-YS-gzq"/>
                     </connections>
                 </textField>
-                <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="e9C-Ve-ccw">
+                <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" setsMaxLayoutWidthAtFirstLayout="YES" translatesAutoresizingMaskIntoConstraints="NO" id="e9C-Ve-ccw">
                     <rect key="frame" x="18" y="8" width="234" height="14"/>
                     <textFieldCell key="cell" controlSize="small" selectable="YES" sendsActionOnEndEditing="YES" title="Subtitle" id="eKw-tQ-dw8">
                         <font key="font" metaFont="smallSystem"/>

@@ -94,10 +94,10 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
     
     NSString *centerString = params[@"center"];
     if (centerString) {
-        NS_ARRAY_OF(NSString *) *coordinateValues = [centerString componentsSeparatedByString:@","];
+        NSArray *coordinateValues = [centerString componentsSeparatedByString:@","];
         if (coordinateValues.count == 2) {
-            self.mapView.centerCoordinate = CLLocationCoordinate2DMake(coordinateValues[0].doubleValue,
-                                                                       coordinateValues[1].doubleValue);
+            self.mapView.centerCoordinate = CLLocationCoordinate2DMake([coordinateValues[0] doubleValue],
+                                                                       [coordinateValues[1] doubleValue]);
         }
     }
     
