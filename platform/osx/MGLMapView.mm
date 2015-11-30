@@ -228,10 +228,6 @@ public:
     _compass.layer.opacity = 0.9;
     _compass.cell = [[MGLCompassCell alloc] init];
     _compass.continuous = YES;
-    [(NSSliderCell *)_compass.cell setSliderType:NSCircularSlider];
-    _compass.numberOfTickMarks = 4;
-    _compass.minValue = -360;
-    _compass.maxValue = 0;
     _compass.target = self;
     _compass.action = @selector(rotate:);
     [_compass sizeToFit];

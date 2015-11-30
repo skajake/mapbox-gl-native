@@ -2,6 +2,16 @@
 
 @implementation MGLCompassCell
 
+- (instancetype)init {
+    if (self = [super init]) {
+        self.sliderType = NSCircularSlider;
+        self.numberOfTickMarks = 4;
+        self.minValue = -360;
+        self.maxValue = 0;
+    }
+    return self;
+}
+
 - (void)drawKnob:(NSRect)knobRect {
     NSBezierPath *trianglePath = [NSBezierPath bezierPath];
     [trianglePath moveToPoint:NSMakePoint(NSMinX(knobRect), NSMaxY(knobRect))];
