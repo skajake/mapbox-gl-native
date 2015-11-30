@@ -204,6 +204,24 @@ public:
     };
     [reachability startNotifier];
     
+    [self installZoomControls];
+    [self installCompass];
+    [self installLogoView];
+    [self installAttributionView];
+    [self installGestureRecognizers];
+    
+    _annotationImagesByIdentifier = [NSMutableDictionary dictionary];
+    _annotationContextsByAnnotationID = {};
+    _selectedAnnotationID = MGLAnnotationNotFound;
+    _unionedAnnotationImageAlignmentRect = NSZeroRect;
+    
+    mbgl::CameraOptions options;
+    options.center = mbgl::LatLng(0, 0);
+    options.zoom = _mbglMap->getMinZoom();
+    _mbglMap->jumpTo(options);
+}
+
+- (void)installZoomControls {
     _zoomControls = [[NSSegmentedControl alloc] initWithFrame:NSZeroRect];
     _zoomControls.wantsLayer = YES;
     _zoomControls.layer.opacity = 0.9;
@@ -222,7 +240,9 @@ public:
     [_zoomControls sizeToFit];
     _zoomControls.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_zoomControls];
-    
+}
+
+- (void)installCompass {
     _compass = [[NSSlider alloc] initWithFrame:NSZeroRect];
     _compass.wantsLayer = YES;
     _compass.layer.opacity = 0.9;
@@ -233,7 +253,9 @@ public:
     [_compass sizeToFit];
     _compass.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_compass];
-    
+}
+
+- (void)installLogoView {
     _logoView = [[NSImageView alloc] initWithFrame:NSZeroRect];
     _logoView.wantsLayer = YES;
     NSImage *logoImage = [[NSImage alloc] initWithContentsOfFile:
@@ -243,7 +265,9 @@ public:
     _logoView.translatesAutoresizingMaskIntoConstraints = NO;
     _logoView.accessibilityTitle = @"Mapbox";
     [self addSubview:_logoView];
-    
+}
+
+- (void)installAttributionView {
     _attributionView = [[NSView alloc] initWithFrame:NSZeroRect];
     _attributionView.wantsLayer = YES;
     _attributionView.layer.opacity = 0.6;
@@ -257,7 +281,9 @@ public:
     _attributionView.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_attributionView];
     [self updateAttributionView];
-    
+}
+
+- (void)installGestureRecognizers {
     self.acceptsTouchEvents = YES;
     _scrollEnabled = YES;
     _zoomEnabled = YES;
@@ -286,16 +312,6 @@ public:
     
     _rotationGestureRecognizer = [[NSRotationGestureRecognizer alloc] initWithTarget:self action:@selector(handleRotationGesture:)];
     [self addGestureRecognizer:_rotationGestureRecognizer];
-    
-    _annotationImagesByIdentifier = [NSMutableDictionary dictionary];
-    _annotationContextsByAnnotationID = {};
-    _selectedAnnotationID = MGLAnnotationNotFound;
-    _unionedAnnotationImageAlignmentRect = NSZeroRect;
-    
-    mbgl::CameraOptions options;
-    options.center = mbgl::LatLng(0, 0);
-    options.zoom = _mbglMap->getMinZoom();
-    _mbglMap->jumpTo(options);
 }
 
 - (void)updateAttributionView {
