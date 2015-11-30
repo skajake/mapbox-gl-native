@@ -501,6 +501,11 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
     _delegateHasLineWidthsForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:lineWidthForPolylineAnnotation:)];
 }
 
+- (void)didReceiveMemoryWarning
+{
+    _mbglMap->onLowMemory();
+}
+
 #pragma mark - Layout -
 
 - (void)setFrame:(CGRect)frame
@@ -3354,11 +3359,6 @@ class MBGLView : public mbgl::View
 - (void)setAllowsTilting:(BOOL)allowsTilting
 {
     self.pitchEnabled = allowsTilting;
-}
-
-- (void)didReceiveMemoryWarning
-{
-    _mbglMap->onLowMemory();
 }
 
 @end

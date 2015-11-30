@@ -115,6 +115,9 @@ public:
     BOOL _delegateHasStrokeColorsForShapeAnnotations;
     BOOL _delegateHasFillColorsForShapeAnnotations;
     BOOL _delegateHasLineWidthsForShapeAnnotations;
+    
+    CLLocationDegrees _pendingLatitude;
+    CLLocationDegrees _pendingLongitude;
 }
 
 #pragma mark Lifecycle

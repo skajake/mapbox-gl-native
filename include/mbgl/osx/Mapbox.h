@@ -3,6 +3,7 @@
 #import "MGLAnnotationImage.h"
 #import "MGLGeometry.h"
 #import "MGLMapView.h"
+#import "MGLMapView+IBAdditions.h"
 #import "MGLMapViewDelegate.h"
 #import "MGLMultiPoint.h"
 #import "MGLOverlay.h"

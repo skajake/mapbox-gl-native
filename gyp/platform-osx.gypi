@@ -47,6 +47,8 @@
         '../include/mbgl/osx/MGLMapView.h',
         '../platform/osx/MGLMapView_Private.h',
         '../platform/osx/MGLMapView.mm',
+        '../include/mbgl/osx/MGLMapView+IBAdditions.h',
+        '../platform/osx/MGLMapView+IBAdditions.m',
         '../include/mbgl/osx/MGLMapViewDelegate.h',
         '../platform/osx/MGLOpenGLLayer.h',
         '../platform/osx/MGLOpenGLLayer.mm',
