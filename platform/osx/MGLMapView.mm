@@ -71,7 +71,7 @@ mbgl::Color MGLColorObjectFromNSColor(NSColor *color) {
         return {{ 0, 0, 0, 0 }};
     }
     CGFloat r, g, b, a;
-    [color getRed:&r green:&g blue:&b alpha:&a];
+    [[color colorUsingColorSpaceName:NSCalibratedRGBColorSpace] getRed:&r green:&g blue:&b alpha:&a];
     return {{ (float)r, (float)g, (float)b, (float)a }};
 }
 
