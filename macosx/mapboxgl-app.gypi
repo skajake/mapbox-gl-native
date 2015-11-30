@@ -25,8 +25,12 @@
       'sources': [
         './AppDelegate.h',
         './AppDelegate.m',
+        './DroppedPinAnnotation.h',
+        './DroppedPinAnnotation.m',
         './LocationCoordinate2DTransformer.h',
         './LocationCoordinate2DTransformer.m',
+        './TimeIntervalTransformer.h',
+        './TimeIntervalTransformer.m',
         './NSValue+Additions.h',
         './NSValue+Additions.m',
         './main.m',

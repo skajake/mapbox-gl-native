@@ -1,5 +1,6 @@
 #import "AppDelegate.h"
 
+#import "DroppedPinAnnotation.h"
 #import "LocationCoordinate2DTransformer.h"
 #import "NSValue+Additions.h"
 
@@ -262,13 +263,9 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
 }
 
 - (void)dropPinAtPoint:(NSPoint)point {
-    MGLPointAnnotation *annotation = [[MGLPointAnnotation alloc] init];
+    DroppedPinAnnotation *annotation = [[DroppedPinAnnotation alloc] init];
     annotation.coordinate = [self.mapView convertPoint:point toCoordinateFromView:self.mapView];
     annotation.title = @"Dropped Pin";
-    NSValueTransformer *xformer = [NSValueTransformer valueTransformerForName:
-                                   NSStringFromClass([LocationCoordinate2DTransformer class])];
-    annotation.subtitle = [xformer transformedValue:
-                           [NSValue valueWithCLLocationCoordinate2D:annotation.coordinate]];
     [self.mapView addAnnotation:annotation];
     [self.mapView selectAnnotation:annotation animated:YES];
 }
@@ -427,6 +424,20 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
 
 - (BOOL)mapView:(MGLMapView *)mapView annotationCanShowCallout:(id <MGLAnnotation>)annotation {
     return YES;
+}
+
+- (void)mapView:(MGLMapView *)mapView didSelectAnnotation:(id <MGLAnnotation>)annotation {
+    if ([annotation isKindOfClass:[DroppedPinAnnotation class]]) {
+        DroppedPinAnnotation *droppedPin = annotation;
+        [droppedPin resume];
+    }
+}
+
+- (void)mapView:(MGLMapView *)mapView didDeselectAnnotation:(id<MGLAnnotation>)annotation {
+    if ([annotation isKindOfClass:[DroppedPinAnnotation class]]) {
+        DroppedPinAnnotation *droppedPin = annotation;
+        [droppedPin pause];
+    }
 }
 
 @end

@@ -406,8 +406,7 @@ public:
 #pragma mark View hierarchy and drawing
 
 - (void)viewWillMoveToWindow:(NSWindow *)newWindow {
-    [self.calloutForSelectedAnnotation close];
-    self.calloutForSelectedAnnotation = nil;
+    [self deselectAnnotation:self.selectedAnnotation animated:NO];
     if (!self.dormant && !newWindow) {
         self.dormant = YES;
         _mbglMap->pause();
@@ -1307,10 +1306,6 @@ public:
                            : NSMaxXEdge);
         [callout showRelativeToRect:positioningRect ofView:self preferredEdge:edge];
     }
-    
-    if ([self.delegate respondsToSelector:@selector(mapView:didSelectAnnotation:)]) {
-        [self.delegate mapView:self didSelectAnnotation:annotation];
-    }
 }
 
 - (NSPopover *)calloutForAnnotation:(id <MGLAnnotation>)annotation {
@@ -1359,12 +1354,7 @@ public:
     callout.animates = animated;
     [callout performClose:self];
     
-    self.calloutForSelectedAnnotation = nil;
     self.selectedAnnotation = nil;
-    
-    if ([self.delegate respondsToSelector:@selector(mapView:didDeselectAnnotation:)]) {
-        [self.delegate mapView:self didDeselectAnnotation:annotation];
-    }
 }
 
 - (void)updateAnnotationCallouts {
@@ -1406,9 +1396,21 @@ public:
 
 #pragma mark MGLPopoverDelegate methods
 
+- (void)popoverDidShow:(__unused NSNotification *)notification {
+    id <MGLAnnotation> annotation = self.selectedAnnotation;
+    if ([self.delegate respondsToSelector:@selector(mapView:didSelectAnnotation:)]) {
+        [self.delegate mapView:self didSelectAnnotation:annotation];
+    }
+}
+
 - (void)popoverDidClose:(__unused NSNotification *)notification {
+    id <MGLAnnotation> annotation = self.calloutForSelectedAnnotation.contentViewController.representedObject;
     self.calloutForSelectedAnnotation = nil;
     self.selectedAnnotation = nil;
+    
+    if ([self.delegate respondsToSelector:@selector(mapView:didDeselectAnnotation:)]) {
+        [self.delegate mapView:self didDeselectAnnotation:annotation];
+    }
 }
 
 #pragma mark Overlays
