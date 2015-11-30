@@ -18,6 +18,7 @@ typedef NS_OPTIONS(NSUInteger, MGLMapDebugMaskOptions) {
 @protocol MGLMapViewDelegate;
 @protocol MGLOverlay;
 
+IB_DESIGNABLE
 @interface MGLMapView : NSView
 
 - (instancetype)initWithFrame:(CGRect)frame styleURL:(nullable NSURL *)styleURL;

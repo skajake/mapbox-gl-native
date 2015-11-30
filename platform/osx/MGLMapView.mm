@@ -29,6 +29,7 @@
 #import <unordered_set>
 
 #import "NSBundle+MGLAdditions.h"
+#import "NSProcessInfo+MGLAdditions.h"
 #import "../darwin/NSException+MGLAdditions.h"
 #import "../darwin/NSString+MGLAdditions.h"
 
@@ -61,6 +62,12 @@ struct MGLAttribution {
 typedef uint32_t MGLAnnotationID;
 enum { MGLAnnotationNotFound = UINT32_MAX };
 typedef std::map<MGLAnnotationID, MGLAnnotationContext> MGLAnnotationContextMap;
+
+NSImage *MGLDefaultMarkerImage() {
+    NSString *path = [[NSBundle mgl_resourceBundle] pathForResource:MGLDefaultStyleMarkerSymbolName
+                                                             ofType:@"pdf"];
+    return [[NSImage alloc] initWithContentsOfFile:path];
+}
 
 std::chrono::steady_clock::duration MGLDurationInSeconds(float duration) {
     return std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<float, std::chrono::seconds::period>(duration));
@@ -116,6 +123,7 @@ public:
     BOOL _delegateHasFillColorsForShapeAnnotations;
     BOOL _delegateHasLineWidthsForShapeAnnotations;
     
+    BOOL _isTargetingInterfaceBuilder;
     CLLocationDegrees _pendingLatitude;
     CLLocationDegrees _pendingLongitude;
 }
@@ -156,6 +164,8 @@ public:
 }
 
 - (void)commonInit {
+    _isTargetingInterfaceBuilder = NSProcessInfo.processInfo.mgl_isInterfaceBuilderDesignablesAgent;
+    
     _mbglView = new MGLMapViewImpl(self, [NSScreen mainScreen].backingScaleFactor);
     
     // Place the cache in a location that can be shared among all the
@@ -177,7 +187,7 @@ public:
     
     _mbglMap = new mbgl::Map(*_mbglView, *_mbglFileSource, mbgl::MapMode::Continuous);
     
-    self.layer = [MGLOpenGLLayer layer];
+    self.layer = _isTargetingInterfaceBuilder ? [CALayer layer] : [MGLOpenGLLayer layer];
     
     // Observe for changes to the global access token (and find out the current one).
     [[MGLAccountManager sharedManager] addObserver:self
@@ -385,6 +395,10 @@ public:
 }
 
 - (void)setStyleURL:(nullable NSURL *)styleURL {
+    if (_isTargetingInterfaceBuilder) {
+        return;
+    }
+    
     if (!styleURL) {
         if (![MGLAccountManager accessToken]) {
             return;
@@ -428,12 +442,14 @@ public:
 }
 
 - (BOOL)wantsBestResolutionOpenGLSurface {
-    return YES;
+    return !_isTargetingInterfaceBuilder;
 }
 
 - (void)setFrame:(NSRect)frame {
     super.frame = frame;
-    _mbglMap->update(mbgl::Update::Dimensions);
+    if (!_isTargetingInterfaceBuilder) {
+        _mbglMap->update(mbgl::Update::Dimensions);
+    }
 }
 
 - (void)updateConstraints {
@@ -1131,9 +1147,7 @@ public:
                 annotationImage = [self dequeueReusableAnnotationImageWithIdentifier:MGLDefaultStyleMarkerSymbolName];
             }
             if (!annotationImage) {
-                NSImage *image = [[NSImage alloc] initWithContentsOfFile:
-                                  [[NSBundle mgl_resourceBundle] pathForResource:MGLDefaultStyleMarkerSymbolName
-                                                                          ofType:@"pdf"]];
+                NSImage *image = MGLDefaultMarkerImage();
                 NSRect alignmentRect = image.alignmentRect;
                 alignmentRect.size.height /= 2;
                 image.alignmentRect = alignmentRect;
@@ -1439,6 +1453,26 @@ public:
         NSAssert([overlay conformsToProtocol:@protocol(MGLOverlay)], @"Overlay does not conform to MGLOverlay");
     }
     [self removeAnnotations:overlays];
+}
+
+#pragma mark Interface Builder methods
+
+- (void)prepareForInterfaceBuilder {
+    [super prepareForInterfaceBuilder];
+    
+    self.layer.borderColor = [NSColor colorWithRed:59/255.
+                                             green:178/255.
+                                              blue:208/255.
+                                             alpha:0.8].CGColor;
+    self.layer.borderWidth = 2;
+    self.layer.backgroundColor = [NSColor colorWithRed:59/255.
+                                                 green:178/255.
+                                                  blue:208/255.
+                                                 alpha:0.6].CGColor;
+    
+    self.layer.contents = MGLDefaultMarkerImage();
+    self.layer.contentsGravity = kCAGravityCenter;
+    self.layer.contentsScale = [NSScreen mainScreen].backingScaleFactor;
 }
 
 #pragma mark Geometric methods

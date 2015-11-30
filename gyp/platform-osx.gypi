@@ -58,6 +58,8 @@
         '../platform/osx/MGLAnnotationImage.m',
         '../platform/osx/NSBundle+MGLAdditions.h',
         '../platform/osx/NSBundle+MGLAdditions.m',
+        '../platform/osx/NSProcessInfo+MGLAdditions.h',
+        '../platform/osx/NSProcessInfo+MGLAdditions.m',
         '../platform/osx/resources/',
       ],
 
