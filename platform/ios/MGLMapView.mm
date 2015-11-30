@@ -26,6 +26,7 @@
 #include <mbgl/util/default_styles.hpp>
 
 #import "Mapbox.h"
+#import "../darwin/MGLGeometry_Private.h"
 #import "../darwin/MGLMultiPoint_Private.h"
 
 #import "NSBundle+MGLAdditions.h"
@@ -153,7 +154,7 @@ mbgl::Color MGLColorObjectFromUIColor(UIColor *color)
 
 @dynamic debugActive;
 
-std::chrono::steady_clock::duration durationInSeconds(float duration)
+std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
 {
     return std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<float, std::chrono::seconds::period>(duration));
 }
@@ -909,7 +910,7 @@ std::chrono::steady_clock::duration durationInSeconds(float duration)
         if (drift)
         {
             CGPoint offset = CGPointMake(velocity.x * duration / 4, velocity.y * duration / 4);
-            _mbglMap->moveBy({ offset.x, offset.y }, durationInSeconds(duration));
+            _mbglMap->moveBy({ offset.x, offset.y }, MGLDurationInSeconds(duration));
         }
 
         [self notifyGestureDidEndWithDrift:drift];
@@ -991,7 +992,7 @@ std::chrono::steady_clock::duration durationInSeconds(float duration)
         {
             CGPoint pinchCenter = [pinch locationInView:pinch.view];
             mbgl::PrecisionPoint center(pinchCenter.x, pinchCenter.y);
-            _mbglMap->setScale(newScale, center, durationInSeconds(duration));
+            _mbglMap->setScale(newScale, center, MGLDurationInSeconds(duration));
         }
 
         [self notifyGestureDidEndWithDrift:velocity];
@@ -1045,7 +1046,7 @@ std::chrono::steady_clock::duration durationInSeconds(float duration)
             CGFloat newRadians = radians + velocity * duration * 0.1;
             CGFloat newDegrees = MGLDegreesFromRadians(newRadians) * -1;
 
-            _mbglMap->setBearing(newDegrees, durationInSeconds(duration));
+            _mbglMap->setBearing(newDegrees, MGLDurationInSeconds(duration));
 
             [self notifyGestureDidEndWithDrift:YES];
 
@@ -1255,7 +1256,7 @@ std::chrono::steady_clock::duration durationInSeconds(float duration)
         }
 
         mbgl::PrecisionPoint center(zoomInPoint.x, zoomInPoint.y);
-        _mbglMap->scaleBy(2, center, durationInSeconds(MGLAnimationDuration));
+        _mbglMap->scaleBy(2, center, MGLDurationInSeconds(MGLAnimationDuration));
 
         __weak MGLMapView *weakSelf = self;
 
@@ -1294,7 +1295,7 @@ std::chrono::steady_clock::duration durationInSeconds(float duration)
         }
 
         mbgl::PrecisionPoint center(zoomOutPoint.x, zoomOutPoint.y);
-        _mbglMap->scaleBy(0.5, center, durationInSeconds(MGLAnimationDuration));
+        _mbglMap->scaleBy(0.5, center, MGLDurationInSeconds(MGLAnimationDuration));
 
         __weak MGLMapView *weakSelf = self;
 
@@ -1615,7 +1616,7 @@ std::chrono::steady_clock::duration durationInSeconds(float duration)
     }
     if (animated)
     {
-        options.duration = durationInSeconds(duration);
+        options.duration = MGLDurationInSeconds(duration);
         options.easing = MGLUnitBezierForMediaTimingFunction(nil);
     }
     if (completion)
@@ -1652,17 +1653,6 @@ std::chrono::steady_clock::duration durationInSeconds(float duration)
 - (void)setZoomLevel:(double)zoomLevel animated:(BOOL)animated
 {
     [self setCenterCoordinate:self.centerCoordinate zoomLevel:zoomLevel animated:animated];
-}
-
-MGLCoordinateBounds MGLCoordinateBoundsFromLatLngBounds(mbgl::LatLngBounds latLngBounds)
-{
-    return MGLCoordinateBoundsMake(MGLLocationCoordinate2DFromLatLng(latLngBounds.sw),
-                                   MGLLocationCoordinate2DFromLatLng(latLngBounds.ne));
-}
-
-mbgl::LatLngBounds MGLLatLngBoundsFromCoordinateBounds(MGLCoordinateBounds coordinateBounds)
-{
-    return mbgl::LatLngBounds(MGLLatLngFromLocationCoordinate2D(coordinateBounds.sw), MGLLatLngFromLocationCoordinate2D(coordinateBounds.ne));
 }
 
 - (MGLCoordinateBounds)visibleCoordinateBounds
@@ -1743,7 +1733,7 @@ mbgl::LatLngBounds MGLLatLngBoundsFromCoordinateBounds(MGLCoordinateBounds coord
     }
     if (duration > 0)
     {
-        options.duration = durationInSeconds(duration);
+        options.duration = MGLDurationInSeconds(duration);
         options.easing = MGLUnitBezierForMediaTimingFunction(function);
     }
     if (completion)
@@ -1790,7 +1780,7 @@ mbgl::LatLngBounds MGLLatLngBoundsFromCoordinateBounds(MGLCoordinateBounds coord
 
     CGFloat duration = animated ? MGLAnimationDuration : 0;
 
-    _mbglMap->setBearing(direction, durationInSeconds(duration));
+    _mbglMap->setBearing(direction, MGLDurationInSeconds(duration));
 }
 
 - (void)setDirection:(CLLocationDirection)direction
@@ -1934,7 +1924,7 @@ mbgl::LatLngBounds MGLLatLngBoundsFromCoordinateBounds(MGLCoordinateBounds coord
     }
     if (duration > 0)
     {
-        options.duration = durationInSeconds(duration);
+        options.duration = MGLDurationInSeconds(duration);
         options.easing = MGLUnitBezierForMediaTimingFunction(function);
     }
     if (completion)
@@ -1973,16 +1963,6 @@ mbgl::LatLngBounds MGLLatLngBoundsFromCoordinateBounds(MGLCoordinateBounds coord
 - (CLLocationDistance)metersPerPixelAtLatitude:(CLLocationDegrees)latitude
 {
     return _mbglMap->getMetersPerPixelAtLatitude(latitude, self.zoomLevel);
-}
-
-mbgl::LatLng MGLLatLngFromLocationCoordinate2D(CLLocationCoordinate2D coordinate)
-{
-    return mbgl::LatLng(coordinate.latitude, coordinate.longitude);
-}
-
-CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng)
-{
-    return CLLocationCoordinate2DMake(latLng.latitude, latLng.longitude);
 }
 
 - (mbgl::LatLngBounds)viewportBounds
@@ -2063,7 +2043,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng)
         newAppliedClasses.insert(newAppliedClasses.end(), [appliedClass UTF8String]);
     }
 
-    _mbglMap->setDefaultTransitionDuration(durationInSeconds(transitionDuration));
+    _mbglMap->setDefaultTransitionDuration(MGLDurationInSeconds(transitionDuration));
     _mbglMap->setClasses(newAppliedClasses);
 }
 

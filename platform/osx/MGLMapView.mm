@@ -3,6 +3,7 @@
 #import "MGLOpenGLLayer.h"
 #import "MGLStyle.h"
 
+#import "../darwin/MGLGeometry_Private.h"
 #import "../darwin/MGLMultiPoint_Private.h"
 
 #import <mbgl/darwin/MGLPolygon.h>
@@ -63,29 +64,6 @@ typedef std::map<MGLAnnotationID, MGLAnnotationContext> MGLAnnotationContextMap;
 
 std::chrono::steady_clock::duration MGLDurationInSeconds(float duration) {
     return std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<float, std::chrono::seconds::period>(duration));
-}
-
-mbgl::LatLng MGLLatLngFromLocationCoordinate2D(CLLocationCoordinate2D coordinate) {
-    return mbgl::LatLng(coordinate.latitude, coordinate.longitude);
-}
-
-CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng) {
-    return CLLocationCoordinate2DMake(latLng.latitude, latLng.longitude);
-}
-
-MGLCoordinateBounds MGLCoordinateBoundsFromLatLngBounds(mbgl::LatLngBounds latLngBounds) {
-    return MGLCoordinateBoundsMake(MGLLocationCoordinate2DFromLatLng(latLngBounds.sw),
-                                   MGLLocationCoordinate2DFromLatLng(latLngBounds.ne));
-}
-
-mbgl::LatLngBounds MGLLatLngBoundsFromCoordinateBounds(MGLCoordinateBounds coordinateBounds) {
-    return mbgl::LatLngBounds(MGLLatLngFromLocationCoordinate2D(coordinateBounds.sw),
-                              MGLLatLngFromLocationCoordinate2D(coordinateBounds.ne));
-}
-
-BOOL MGLCoordinateInCoordinateBounds(CLLocationCoordinate2D coordinate, MGLCoordinateBounds coordinateBounds) {
-    mbgl::LatLngBounds bounds = MGLLatLngBoundsFromCoordinateBounds(coordinateBounds);
-    return bounds.contains(MGLLatLngFromLocationCoordinate2D(coordinate));
 }
 
 mbgl::Color MGLColorObjectFromNSColor(NSColor *color) {

@@ -1,5 +1,5 @@
 #import "MGLMultiPoint_Private.h"
-#import "MGLGeometry.h"
+#import "MGLGeometry_Private.h"
 
 #import <mbgl/util/geo.hpp>
 
@@ -122,7 +122,7 @@ mbgl::Color MGLColorObjectFromCGColorRef(CGColorRef cgColor) {
     mbgl::AnnotationSegment segment;
     segment.reserve(count);
     for (NSUInteger i = 0; i < count; i++) {
-        segment.push_back(mbgl::LatLng(coordinates[i].latitude, coordinates[i].longitude));
+        segment.push_back(MGLLatLngFromLocationCoordinate2D(coordinates[i]));
     }
     free(coordinates);
     shapes.emplace_back(mbgl::AnnotationSegments {{ segment }},
