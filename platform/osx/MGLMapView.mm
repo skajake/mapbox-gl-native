@@ -1246,7 +1246,8 @@ public:
 }
 
 - (NS_ARRAY_OF(id <MGLAnnotation>) *)selectedAnnotations {
-    return self.selectedAnnotation ? @[self.selectedAnnotation] : @[];
+    id <MGLAnnotation> selectedAnnotation = self.selectedAnnotation;
+    return selectedAnnotation ? @[selectedAnnotation] : @[];
 }
 
 - (void)setSelectedAnnotation:(id <MGLAnnotation>)selectedAnnotation {
