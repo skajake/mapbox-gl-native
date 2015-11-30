@@ -54,6 +54,8 @@
         '../platform/osx/MGLOpenGLLayer.mm',
         '../platform/osx/MGLCompassCell.h',
         '../platform/osx/MGLCompassCell.m',
+        '../platform/osx/MGLAttributionButton.h',
+        '../platform/osx/MGLAttributionButton.m',
         '../include/mbgl/osx/MGLAnnotationImage.h',
         '../platform/osx/MGLAnnotationImage.m',
         '../platform/osx/NSBundle+MGLAdditions.h',

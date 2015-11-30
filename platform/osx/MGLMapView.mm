@@ -1,5 +1,6 @@
 #import "MGLMapView_Private.h"
 #import "MGLAccountManager_Private.h"
+#import "MGLAttributionButton.h"
 #import "MGLCompassCell.h"
 #import "MGLOpenGLLayer.h"
 #import "MGLStyle.h"
@@ -305,25 +306,9 @@ public:
     self.attributionView.subviews = @[];
     
     for (NSUInteger i = 0; i < sizeof(MGLAttributions) / sizeof(MGLAttributions[0]); i++) {
-        NSButton *button = [[NSButton alloc] initWithFrame:NSZeroRect];
-        button.wantsLayer = YES;
-        button.bordered = NO;
-        button.bezelStyle = NSRegularSquareBezelStyle;
+        NSURL *url = [NSURL URLWithString:MGLAttributions[i].urlString];
+        NSButton *button = [[MGLAttributionButton alloc] initWithTitle:MGLAttributions[i].title URL:url];
         button.controlSize = NSMiniControlSize;
-        NSMutableAttributedString *title = [[NSMutableAttributedString alloc] initWithString:@"© "
-                                                                                  attributes:@{
-            NSFontAttributeName: [NSFont systemFontOfSize:[NSFont systemFontSizeForControlSize:NSMiniControlSize]],
-        }];
-        [title appendAttributedString:[[NSAttributedString alloc] initWithString:MGLAttributions[i].title
-                                                                      attributes:@{
-            NSFontAttributeName: [NSFont systemFontOfSize:[NSFont systemFontSizeForControlSize:NSMiniControlSize]],
-            NSUnderlineStyleAttributeName: @(NSUnderlineStyleSingle),
-        }]];
-        button.attributedTitle = title;
-        button.toolTip = MGLAttributions[i].urlString;
-        button.target = self;
-        button.action = @selector(openAttribution:);
-        [button sizeToFit];
         button.translatesAutoresizingMaskIntoConstraints = NO;
         
         NSView *previousView = self.attributionView.subviews.lastObject;
@@ -1060,10 +1045,6 @@ public:
 }
 
 #pragma mark Ornaments
-
-- (IBAction)openAttribution:(NSButton *)sender {
-    [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:sender.toolTip]];
-}
 
 - (void)updateZoomControls {
     [_zoomControls setEnabled:self.zoomLevel > self.minimumZoomLevel forSegment:0];
