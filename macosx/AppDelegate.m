@@ -230,6 +230,7 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
 • To zoom, pinch with two fingers, or hold down Shift while dragging the cursor up and down, or hold down Option while pressing the up and down arrow keys.\n\
 • To rotate, move two fingers opposite each other in a circle, or hold down Option while dragging the cursor left and right, or hold down Option while pressing the left and right arrow keys.\n\
 • To tilt, hold down Option while dragging the cursor up and down.\
+• To drop a pin, click and hold.\
 ";
     [alert runModal];
 }
