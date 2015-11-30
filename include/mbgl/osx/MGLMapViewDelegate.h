@@ -21,6 +21,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)mapViewWillStartLoadingMap:(MGLMapView *)mapView;
 - (void)mapViewDidFinishLoadingMap:(MGLMapView *)mapView;
 
+- (void)mapViewWillStartRenderingMap:(MGLMapView *)mapView;
+- (void)mapViewDidFinishRenderingMap:(MGLMapView *)mapView fullyRendered:(BOOL)fullyRendered;
+- (void)mapViewWillStartRenderingFrame:(MGLMapView *)mapView;
+- (void)mapViewDidFinishRenderingFrame:(MGLMapView *)mapView fullyRendered:(BOOL)fullyRendered;
+
 - (nullable MGLAnnotationImage *)mapView:(MGLMapView *)mapView imageForAnnotation:(id <MGLAnnotation>)annotation;
 - (CGFloat)mapView:(MGLMapView *)mapView alphaForShapeAnnotation:(MGLShape *)annotation;
 - (NSColor *)mapView:(MGLMapView *)mapView strokeColorForShapeAnnotation:(MGLShape *)annotation;

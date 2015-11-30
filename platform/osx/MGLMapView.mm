@@ -594,13 +594,40 @@ public:
             break;
         }
         case mbgl::MapChangeDidFailLoadingMap:
+        {
+            // Not yet implemented.
+            break;
+        }
         case mbgl::MapChangeWillStartRenderingMap:
+        {
+            if ([self.delegate respondsToSelector:@selector(mapViewWillStartRenderingMap:)]) {
+                [self.delegate mapViewWillStartRenderingMap:self];
+            }
+            break;
+        }
         case mbgl::MapChangeDidFinishRenderingMap:
         case mbgl::MapChangeDidFinishRenderingMapFullyRendered:
+        {
+            if ([self.delegate respondsToSelector:@selector(mapViewDidFinishRenderingMap:fullyRendered:)]) {
+                BOOL fullyRendered = change == mbgl::MapChangeDidFinishRenderingMapFullyRendered;
+                [self.delegate mapViewDidFinishRenderingMap:self fullyRendered:fullyRendered];
+            }
+            break;
+        }
         case mbgl::MapChangeWillStartRenderingFrame:
+        {
+            if ([self.delegate respondsToSelector:@selector(mapViewWillStartRenderingFrame:)]) {
+                [self.delegate mapViewWillStartRenderingFrame:self];
+            }
+            break;
+        }
         case mbgl::MapChangeDidFinishRenderingFrame:
         case mbgl::MapChangeDidFinishRenderingFrameFullyRendered:
         {
+            if ([self.delegate respondsToSelector:@selector(mapViewDidFinishRenderingFrame:fullyRendered:)]) {
+                BOOL fullyRendered = change == mbgl::MapChangeDidFinishRenderingFrameFullyRendered;
+                [self.delegate mapViewDidFinishRenderingFrame:self fullyRendered:fullyRendered];
+            }
             break;
         }
     }
