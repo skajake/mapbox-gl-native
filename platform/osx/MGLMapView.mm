@@ -1582,6 +1582,19 @@ public:
         MGLOpenGLLayer *layer = (MGLOpenGLLayer *)nativeView.layer;
         if ([NSOpenGLContext currentContext] != layer.openGLContext) {
             [layer.openGLContext makeCurrentContext];
+            
+            mbgl::gl::InitializeExtensions([](const char *name) {
+                static CFBundleRef framework = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.opengl"));
+                if (!framework) {
+                    throw std::runtime_error("Failed to load OpenGL framework.");
+                }
+                
+                CFStringRef str = CFStringCreateWithCString(kCFAllocatorDefault, name, kCFStringEncodingASCII);
+                void *symbol = CFBundleGetFunctionPointerForName(framework, str);
+                CFRelease(str);
+                
+                return reinterpret_cast<mbgl::gl::glProc>(symbol);
+            });
         }
     }
     

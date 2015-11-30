@@ -37,23 +37,6 @@
     return [[NSOpenGLPixelFormat alloc] initWithAttributes:pfas];
 }
 
-- (NSOpenGLContext *)openGLContextForPixelFormat:(NSOpenGLPixelFormat *)pixelFormat {
-    mbgl::gl::InitializeExtensions([](const char *name) {
-        static CFBundleRef framework = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.opengl"));
-        if (!framework) {
-            throw std::runtime_error("Failed to load OpenGL framework.");
-        }
-        
-        CFStringRef str = CFStringCreateWithCString(kCFAllocatorDefault, name, kCFStringEncodingASCII);
-        void *symbol = CFBundleGetFunctionPointerForName(framework, str);
-        CFRelease(str);
-        
-        return reinterpret_cast<mbgl::gl::glProc>(symbol);
-    });
-    
-    return [super openGLContextForPixelFormat:pixelFormat];
-}
-
 - (BOOL)canDrawInOpenGLContext:(__unused NSOpenGLContext *)context pixelFormat:(__unused NSOpenGLPixelFormat *)pixelFormat forLayerTime:(__unused CFTimeInterval)t displayTime:(__unused const CVTimeStamp *)ts {
     return !self.mapView.dormant;
 }
