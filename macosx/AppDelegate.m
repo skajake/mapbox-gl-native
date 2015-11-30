@@ -251,7 +251,10 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
 #pragma mark Mouse events
 
 - (void)handlePressGesture:(NSPressGestureRecognizer *)gestureRecognizer {
-    [self dropPinAtPoint:[gestureRecognizer locationInView:self.mapView]];
+    if (gestureRecognizer.state == NSGestureRecognizerStateBegan) {
+        NSPoint location = [gestureRecognizer locationInView:self.mapView];
+        [self dropPinAtPoint:location];
+    }
 }
 
 - (IBAction)dropPin:(NSMenuItem *)sender {
