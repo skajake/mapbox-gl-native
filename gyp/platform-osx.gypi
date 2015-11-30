@@ -50,6 +50,8 @@
         '../include/mbgl/osx/MGLMapViewDelegate.h',
         '../platform/osx/MGLOpenGLLayer.h',
         '../platform/osx/MGLOpenGLLayer.mm',
+        '../platform/osx/MGLCompassCell.h',
+        '../platform/osx/MGLCompassCell.m',
         '../include/mbgl/osx/MGLAnnotationImage.h',
         '../platform/osx/MGLAnnotationImage.m',
         '../platform/osx/NSBundle+MGLAdditions.h',
