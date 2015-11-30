@@ -31,7 +31,8 @@ NS_ASSUME_NONNULL_END
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wvariadic-macros"
     #ifndef NS_ARRAY_OF
-        #if __has_feature(objc_generics)
+        // Foundation collection classes adopted lightweight generics in iOS 9.0 and OS X 10.11 SDKs.
+        #if __has_feature(objc_generics) && (__IPHONE_OS_VERSION_MAX_ALLOWED >= 90000 || __MAC_OS_X_VERSION_MAX_ALLOWED >= 101100)
             /** Inserts a type specifier for a pointer to a lightweight generic with the given collection and object classes. Use a `*` for any non-`id` object classes but no `*` for the collection class. */
             #define NS_ARRAY_OF(ObjectClass...)                 NSArray <ObjectClass>
             #define NS_MUTABLE_ARRAY_OF(ObjectClass...)         NSMutableArray <ObjectClass>
