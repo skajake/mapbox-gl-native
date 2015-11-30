@@ -8,7 +8,7 @@
 
 static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken";
 
-@interface AppDelegate () <NSSharingServicePickerDelegate, NSMenuDelegate, MGLMapViewDelegate>
+@interface AppDelegate () <NSApplicationDelegate, NSSharingServicePickerDelegate, NSMenuDelegate, MGLMapViewDelegate>
 
 @property (weak) IBOutlet NSWindow *window;
 @property (weak) IBOutlet MGLMapView *mapView;
@@ -389,6 +389,12 @@ static NSString * const MGLMapboxAccessTokenDefaultsKey = @"MGLMapboxAccessToken
         [popUpButton selectItemAtIndex:index];
     }
     return NO;
+}
+
+#pragma mark NSApplicationDelegate methods
+
+- (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
+    return YES;
 }
 
 #pragma mark NSSharingServicePickerDelegate methods
