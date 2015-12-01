@@ -1352,6 +1352,8 @@ public:
     NSSize annotationSize = annotationImage.image.size;
     NSRect annotationRect = NSMakeRect(calloutAnchorPoint.x - annotationSize.width / 2, calloutAnchorPoint.y,
                                        annotationSize.width, annotationSize.height / 2);
+    annotationRect = NSOffsetRect(annotationImage.image.alignmentRect,
+                                  annotationRect.origin.x, annotationRect.origin.y);
     return NSInsetRect(annotationRect, -MGLAnnotationImagePaddingForCallout, 0);
 }
 
