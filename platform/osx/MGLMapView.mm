@@ -8,9 +8,9 @@
 #import "../darwin/MGLGeometry_Private.h"
 #import "../darwin/MGLMultiPoint_Private.h"
 
-#import <mbgl/darwin/MGLAnnotationImage.h>
 #import <mbgl/darwin/MGLPolygon.h>
 #import <mbgl/darwin/MGLPolyline.h>
+#import <mbgl/osx/MGLAnnotationImage.h>
 #import <mbgl/osx/MGLMapViewDelegate.h>
 
 #import <mbgl/mbgl.hpp>
