@@ -238,6 +238,20 @@ static NSString * const MGLDroppedPinAnnotationImageIdentifier = @"dropped";
     _randomizesCursorsOnDroppedPins = !_randomizesCursorsOnDroppedPins;
 }
 
+- (IBAction)dropManyPins:(id)sender {
+    [self.mapView removeAnnotations:self.mapView.annotations];
+    
+    NSRect bounds = self.mapView.bounds;
+    NSMutableArray *annotations = [NSMutableArray array];
+    for (CGFloat x = NSMinX(bounds); x < NSMaxX(bounds); x += arc4random_uniform(100)) {
+        for (CGFloat y = NSMaxY(bounds); y >= NSMinY(bounds); y -= arc4random_uniform(100)) {
+            [annotations addObject:[self pinAtPoint:NSMakePoint(x, y)]];
+        }
+    }
+    
+    [self.mapView addAnnotations:annotations];
+}
+
 #pragma mark Help methods
 
 - (IBAction)showShortcuts:(id)sender {
@@ -282,6 +296,12 @@ static NSString * const MGLDroppedPinAnnotationImageIdentifier = @"dropped";
 }
 
 - (void)dropPinAtPoint:(NSPoint)point {
+    DroppedPinAnnotation *annotation = [self pinAtPoint:point];
+    [self.mapView addAnnotation:annotation];
+    [self.mapView selectAnnotation:annotation animated:YES];
+}
+
+- (DroppedPinAnnotation *)pinAtPoint:(NSPoint)point {
     DroppedPinAnnotation *annotation = [[DroppedPinAnnotation alloc] init];
     annotation.coordinate = [self.mapView convertPoint:point toCoordinateFromView:self.mapView];
     annotation.title = @"Dropped Pin";
@@ -290,8 +310,7 @@ static NSString * const MGLDroppedPinAnnotationImageIdentifier = @"dropped";
         NSString *formattedNumber = [_spellOutNumberFormatter stringFromNumber:@(++_droppedPinCounter)];
         annotation.toolTip = formattedNumber;
     }
-    [self.mapView addAnnotation:annotation];
-    [self.mapView selectAnnotation:annotation animated:YES];
+    return annotation;
 }
 
 - (IBAction)removePin:(NSMenuItem *)sender {
@@ -388,6 +407,9 @@ static NSString * const MGLDroppedPinAnnotationImageIdentifier = @"dropped";
         BOOL isRandom = _randomizesCursorsOnDroppedPins;
         menuItem.title = isRandom ? @"Use Default Cursor for Dropped Pins" : @"Use Random Cursors for Dropped Pins";
         return _showsToolTipsOnDroppedPins;
+    }
+    if (menuItem.action == @selector(dropManyPins:)) {
+        return YES;
     }
     if (menuItem.action == @selector(showShortcuts:)) {
         return YES;
