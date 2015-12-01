@@ -55,7 +55,6 @@ const CGFloat MGLMinimumZoom = 3;
 const CGFloat MGLMinimumPitch = 0;
 const CGFloat MGLMaximumPitch = 60;
 const CLLocationDegrees MGLAngularFieldOfView = M_PI / 6.;
-const std::string spritePrefix = "com.mapbox.sprites.";
 const NSUInteger MGLTargetFrameInterval = 1;  //Target FPS will be 60 divided by this value
 
 NSString *const MGLAnnotationIDKey = @"MGLAnnotationIDKey";
@@ -1126,7 +1125,6 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
         {
             // pare down nearby annotations to only enabled ones
             NSEnumerator *metadataEnumerator = [self.annotationMetadataByAnnotation objectEnumerator];
-            NSString *prefix = [NSString stringWithUTF8String:spritePrefix.c_str()];
             std::unordered_set<uint32_t> disabledAnnotationIDs;
 
             while (NSDictionary *metadata = [metadataEnumerator nextObject])
@@ -1134,10 +1132,10 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
                 // This iterates ALL annotations' metadata dictionaries, using their
                 // reuse identifiers to get at the stored annotation image objects,
                 // which we can then query for enabled status.
-                NSString *reuseIdentifier = [metadata[MGLAnnotationSymbolKey] stringByReplacingOccurrencesOfString:prefix
+                NSString *reuseIdentifier = [metadata[MGLAnnotationSymbolKey] stringByReplacingOccurrencesOfString:MGLAnnotationSpritePrefix
                                                                                                         withString:@""
                                                                                                            options:NSAnchoredSearch
-                                                                                                             range:NSMakeRange(0, prefix.length)];
+                                                                                                             range:NSMakeRange(0, MGLAnnotationSpritePrefix.length)];
 
                 MGLAnnotationImage *annotationImage = self.annotationImages[reuseIdentifier];
 
@@ -1662,7 +1660,7 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
 
 - (MGLCoordinateBounds)visibleCoordinateBounds
 {
-    return MGLCoordinateBoundsFromLatLngBounds(self.viewportBounds);
+    return [self convertRectToCoordinateBounds:self.bounds];
 }
 
 - (void)setVisibleCoordinateBounds:(MGLCoordinateBounds)bounds
@@ -1945,19 +1943,28 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
 
 - (CLLocationCoordinate2D)convertPoint:(CGPoint)point toCoordinateFromView:(nullable UIView *)view
 {
+    return MGLLocationCoordinate2DFromLatLng([self convertPoint:point toLatLngFromView:view]);
+}
+
+- (mbgl::LatLng)convertPoint:(CGPoint)point toLatLngFromView:(nullable UIView *)view {
     CGPoint convertedPoint = [self convertPoint:point fromView:view];
 
     // flip y coordinate for iOS view origin top left
     //
     convertedPoint.y = self.bounds.size.height - convertedPoint.y;
 
-    return MGLLocationCoordinate2DFromLatLng(_mbglMap->latLngForPixel(mbgl::PrecisionPoint(convertedPoint.x, convertedPoint.y)));
+    return _mbglMap->latLngForPixel(mbgl::PrecisionPoint(convertedPoint.x, convertedPoint.y));
 }
 
 - (CGPoint)convertCoordinate:(CLLocationCoordinate2D)coordinate toPointToView:(nullable UIView *)view
 {
-    mbgl::vec2<double> pixel = _mbglMap->pixelForLatLng(MGLLatLngFromLocationCoordinate2D(coordinate));
+    return [self convertLatLng:MGLLatLngFromLocationCoordinate2D(coordinate) toPointToView:view];
+}
 
+- (CGPoint)convertLatLng:(mbgl::LatLng)latLng toPointToView:(nullable UIView *)view
+{
+    mbgl::vec2<double> pixel = _mbglMap->pixelForLatLng(latLng);
+    
     // flip y coordinate for iOS view origin in top left
     //
     pixel.y = self.bounds.size.height - pixel.y;
@@ -1965,25 +1972,50 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
     return [self convertPoint:CGPointMake(pixel.x, pixel.y) toView:view];
 }
 
+- (MGLCoordinateBounds)convertRectToCoordinateBounds:(CGRect)rect
+{
+    return MGLCoordinateBoundsFromLatLngBounds([self convertRectToLatLngBounds:rect]);
+}
+
+- (mbgl::LatLngBounds)convertRectToLatLngBounds:(CGRect)rect
+{
+    mbgl::LatLngBounds bounds = mbgl::LatLngBounds::getExtendable();
+    bounds.extend([self convertPoint:rect.origin toLatLngFromView:self]);
+    bounds.extend([self convertPoint:{ rect.origin.x + rect.size.width, rect.origin.y } toLatLngFromView:self]);
+    bounds.extend([self convertPoint:{ rect.origin.x + rect.size.width, rect.origin.y + rect.size.height } toLatLngFromView:self]);
+    bounds.extend([self convertPoint:{ rect.origin.x, rect.origin.y + rect.size.height } toLatLngFromView:self]);
+    
+    // The world is wrapping if a point just outside the bounds is also within
+    // the rect.
+    mbgl::LatLng outsideLatLng;
+    if (bounds.sw.longitude > -180)
+    {
+        outsideLatLng = {
+            (bounds.sw.latitude + bounds.ne.latitude) / 2,
+            bounds.sw.longitude - 1,
+        };
+    }
+    else if (bounds.ne.longitude < 180)
+    {
+        outsideLatLng = {
+            (bounds.sw.latitude + bounds.ne.latitude) / 2,
+            bounds.ne.longitude + 1,
+        };
+    }
+    
+    // If the world is wrapping, extend the bounds to cover all longitudes.
+    if (CGRectContainsPoint(rect, [self convertLatLng:outsideLatLng toPointToView:self]))
+    {
+        bounds.sw.longitude = -180;
+        bounds.ne.longitude = 180;
+    }
+    
+    return bounds;
+}
+
 - (CLLocationDistance)metersPerPixelAtLatitude:(CLLocationDegrees)latitude
 {
     return _mbglMap->getMetersPerPixelAtLatitude(latitude, self.zoomLevel);
-}
-
-- (mbgl::LatLngBounds)viewportBounds
-{
-    mbgl::LatLngBounds bounds = mbgl::LatLngBounds::getExtendable();
-
-    bounds.extend(MGLLatLngFromLocationCoordinate2D(
-        [self convertPoint:CGPointMake(0, 0) toCoordinateFromView:self]));
-    bounds.extend(MGLLatLngFromLocationCoordinate2D(
-        [self convertPoint:CGPointMake(self.bounds.size.width, 0) toCoordinateFromView:self]));
-    bounds.extend(MGLLatLngFromLocationCoordinate2D(
-        [self convertPoint:CGPointMake(0, self.bounds.size.height) toCoordinateFromView:self]));
-    bounds.extend(MGLLatLngFromLocationCoordinate2D(
-        [self convertPoint:CGPointMake(self.bounds.size.width, self.bounds.size.height) toCoordinateFromView:self]));
-
-    return bounds;
 }
 
 #pragma mark - Styling -
@@ -2132,6 +2164,8 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
             if ( ! annotationImage)
             {
                 UIImage *defaultAnnotationImage = [MGLMapView resourceImageNamed:MGLDefaultStyleMarkerSymbolName];
+                defaultAnnotationImage = [defaultAnnotationImage imageWithAlignmentRectInsets:
+                                          UIEdgeInsetsMake(0, 0, defaultAnnotationImage.size.height / 2, 0)];
                 annotationImage = [MGLAnnotationImage annotationImageWithImage:defaultAnnotationImage
                                                                reuseIdentifier:MGLDefaultStyleMarkerSymbolName];
             }
@@ -2306,6 +2340,10 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
 
 - (MGLAnnotationImage *)dequeueReusableAnnotationImageWithIdentifier:(NSString *)identifier
 {
+    if ([identifier hasPrefix:MGLAnnotationSpritePrefix])
+    {
+        identifier = [identifier substringFromIndex:MGLAnnotationSpritePrefix.length];
+    }
     return [self.annotationImages objectForKey:identifier];
 }
 
@@ -2324,9 +2362,10 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
 
     if ([firstAnnotation isKindOfClass:[MGLMultiPoint class]]) return;
 
-    if ( ! [self viewportBounds].contains(MGLLatLngFromLocationCoordinate2D(firstAnnotation.coordinate))) return;
-
-    [self selectAnnotation:firstAnnotation animated:NO];
+    if (MGLCoordinateInCoordinateBounds(firstAnnotation.coordinate, self.visibleCoordinateBounds))
+    {
+        [self selectAnnotation:firstAnnotation animated:NO];
+    }
 }
 
 - (void)selectAnnotation:(id <MGLAnnotation>)annotation animated:(BOOL)animated
@@ -2335,7 +2374,10 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
 
     if ([annotation isKindOfClass:[MGLMultiPoint class]]) return;
 
-    if ( ! [self viewportBounds].contains(MGLLatLngFromLocationCoordinate2D(annotation.coordinate))) return;
+    if ( ! MGLCoordinateInCoordinateBounds(annotation.coordinate, self.visibleCoordinateBounds))
+    {
+        return;
+    }
 
     if (annotation == self.selectedAnnotation) return;
 
@@ -2368,9 +2410,9 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
             std::string cSymbolName([symbolName UTF8String]);
 
             // determine anchor point based on symbol
-            CGPoint calloutAnchorPoint = [self convertCoordinate:annotation.coordinate toPointToView:self];
-            double y = _mbglMap->getTopOffsetPixelsForAnnotationSymbol(cSymbolName);
-            calloutBounds = CGRectMake(calloutAnchorPoint.x - 1, calloutAnchorPoint.y + y, 0, 0);
+            CGRect positioningRect = [self positioningRectForCalloutForAnnotation:annotation];
+            CGPoint calloutAnchorPoint = CGPointMake(positioningRect.origin.x + positioningRect.size.width / 2, positioningRect.origin.y);
+            calloutBounds = { calloutAnchorPoint, CGSizeZero };
         }
 
         // consult delegate for left and/or right accessory views
@@ -2429,6 +2471,38 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
     calloutView.tintColor = self.tintColor;
 
     return calloutView;
+}
+
+- (CGRect)positioningRectForCalloutForAnnotation:(id <MGLAnnotation>)annotation {
+    if ( ! annotation)
+    {
+        return CGRectZero;
+    }
+    
+    NSString *customSymbol = [self.annotationMetadataByAnnotation objectForKey:annotation][MGLAnnotationSymbolKey];
+    NSString *symbolName = customSymbol.length ? customSymbol : MGLDefaultStyleMarkerSymbolName;
+    
+    UIImage *image = [self dequeueReusableAnnotationImageWithIdentifier:symbolName].image;
+    if ( ! image)
+    {
+        return CGRectZero;
+    }
+    
+    CGPoint calloutAnchorPoint = [self convertCoordinate:annotation.coordinate toPointToView:self];
+    CGRect positioningRect = CGRectInset({ calloutAnchorPoint, CGSizeZero }, -image.size.width / 2, -image.size.height / 2);
+    return UIEdgeInsetsInsetRect(positioningRect, image.alignmentRectInsets);
+}
+
+- (MGLAnnotationImage *)imageOfAnnotation:(id <MGLAnnotation>)annotation {
+    if (!annotation)
+    {
+        return nil;
+    }
+    
+    NSString *customSymbol = [self.annotationMetadataByAnnotation objectForKey:annotation][MGLAnnotationSymbolKey];
+    NSString *symbolName = customSymbol.length ? customSymbol : MGLDefaultStyleMarkerSymbolName;
+    
+    return [self dequeueReusableAnnotationImageWithIdentifier:symbolName];
 }
 
 - (void)deselectAnnotation:(id <MGLAnnotation>)annotation animated:(BOOL)animated
