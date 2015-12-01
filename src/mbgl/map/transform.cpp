@@ -272,6 +272,7 @@ void Transform::_easeTo(CameraOptions options, const double new_scale, const dou
 
 void Transform::flyTo(CameraOptions options) {
     LatLng latLng = options.center ? *options.center : getLatLng();
+    LatLng startLatLng = getLatLng();
     double zoom = options.zoom ? *options.zoom : getZoom();
     double angle = options.angle ? *options.angle : getAngle();
     if (std::isnan(latLng.latitude) || std::isnan(latLng.longitude) || std::isnan(zoom)) {
@@ -338,12 +339,21 @@ void Transform::flyTo(CameraOptions options) {
             double s = k * S;
             double us = u(s);
             
-            state.scale = startS + std::log2(1 / w(s));
-            state.x = xn * us;
-            state.y = yn * us;
+            //First calculate the desired latlng
+            double desiredLat = startLatLng.latitude + (latLng.latitude - startLatLng.latitude) * us;
+            double desiredLng = startLatLng.longitude + (latLng.longitude - startLatLng.longitude) * us;
+            
+            //Now calculate desired zoom
+            state.scale = startS - w(s);
+            
+            //Now set values
             const double new_scaled_tile_size = state.scale * util::tileSize;
             state.Bc = new_scaled_tile_size / 360;
             state.Cc = new_scaled_tile_size / util::M2PI;
+            
+            const double f2 = std::fmin(std::fmax(std::sin(util::DEG2RAD * desiredLat), -m), m);
+            state.x = -desiredLng * state.Bc;
+            state.y = 0.5 * state.Cc * std::log((1 + f2) / (1 - f2));
             
             if (angle != startA) {
                 state.angle = util::wrap(util::interpolate(startA, angle, k), -M_PI, M_PI);
