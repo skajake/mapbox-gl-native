@@ -2,7 +2,7 @@
 
 @interface DroppedPinAnnotation : MGLPointAnnotation
 
-@property (nonatomic) NSTimeInterval elapsedShownTime;
+@property (nonatomic, readonly) NSTimeInterval elapsedShownTime;
 
 - (void)resume;
 - (void)pause;

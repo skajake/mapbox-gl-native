@@ -12,8 +12,8 @@
     return NO;
 }
 
-NSString *NumberAndUnitString(double quantity, NSString *singular, NSString *plural) {
-    return [NSString stringWithFormat:@"%.0f %@", quantity, quantity == 1 ? singular : plural];
+NSString *NumberAndUnitString(NSInteger quantity, NSString *singular, NSString *plural) {
+    return [NSString stringWithFormat:@"%ld %@", quantity, quantity == 1 ? singular : plural];
 }
 
 - (id)transformedValue:(id)value {
@@ -22,30 +22,30 @@ NSString *NumberAndUnitString(double quantity, NSString *singular, NSString *plu
     }
     
     NSTimeInterval timeInterval = [value doubleValue];
-    double seconds = timeInterval;
-    double minutes = seconds / 60;
-    seconds -= trunc(minutes) * 60;
-    double hours = minutes / 60;
-    minutes -= trunc(hours) * 60;
-    double days = hours / 24;
-    hours -= trunc(days) * 24;
-    double weeks = days / 7;
-    days -= trunc(weeks) * 7;
+    NSInteger seconds = floor(timeInterval);
+    NSInteger minutes = floor(seconds / 60);
+    seconds -= minutes * 60;
+    NSInteger hours = floor(minutes / 60);
+    minutes -= hours * 60;
+    NSInteger days = floor(hours / 24);
+    hours -= days * 24;
+    NSInteger weeks = floor(days) / 7;
+    days -= weeks * 7;
     
     NSMutableArray *components = [NSMutableArray array];
-    if (trunc(seconds) || timeInterval < 60) {
+    if (seconds || timeInterval < 60) {
         [components addObject:NumberAndUnitString(seconds, @"second", @"seconds")];
     }
-    if (trunc(minutes)) {
+    if (minutes) {
         [components insertObject:NumberAndUnitString(minutes, @"minute", @"minutes") atIndex:0];
     }
-    if (trunc(hours)) {
+    if (hours) {
         [components insertObject:NumberAndUnitString(hours, @"hour", @"hours") atIndex:0];
     }
-    if (trunc(days)) {
+    if (days) {
         [components insertObject:NumberAndUnitString(days, @"day", @"days") atIndex:0];
     }
-    if (trunc(weeks)) {
+    if (weeks) {
         [components insertObject:NumberAndUnitString(weeks, @"week", @"weeks") atIndex:0];
     }
     
