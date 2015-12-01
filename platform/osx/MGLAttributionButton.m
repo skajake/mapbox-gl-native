@@ -31,21 +31,12 @@
     return self;
 }
 
-- (void)viewDidMoveToWindow {
-    [self removeTrackingRect:_trackingAreaTag];
-    _trackingAreaTag = [self addTrackingRect:self.bounds owner:self userData:NULL assumeInside:NO];
-}
-
 - (BOOL)wantsLayer {
     return YES;
 }
 
-- (void)mouseEntered:(__unused NSEvent *)event {
-    [[NSCursor pointingHandCursor] push];
-}
-
-- (void)mouseExited:(__unused NSEvent *)event {
-    [[NSCursor pointingHandCursor] pop];
+- (void)resetCursorRects {
+    [self addCursorRect:self.bounds cursor:[NSCursor pointingHandCursor]];
 }
 
 - (IBAction)openURL:(__unused id)sender {
