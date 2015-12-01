@@ -1,4 +1,9 @@
-#import <UIKit/UIKit.h>
+#import <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+    #import <UIKit/UIKit.h>
+#else
+    #import <AppKit/AppKit.h>
+#endif
 
 #import "MGLTypes.h"
 
@@ -13,12 +18,20 @@ NS_ASSUME_NONNULL_BEGIN
 *   @param image The image to be displayed for the annotation.
 *   @param reuseIdentifier The string that identifies that this annotation image is reusable.
 *   @return The initialized annotation image object or `nil` if there was a problem initializing the object. */
+#if TARGET_OS_IPHONE
 + (instancetype)annotationImageWithImage:(UIImage *)image reuseIdentifier:(NSString *)reuseIdentifier;
+#else
++ (instancetype)annotationImageWithImage:(NSImage *)image reuseIdentifier:(NSString *)reuseIdentifier;
+#endif
 
 /** @name Getting and Setting Attributes */
 
 /** The image to be displayed for the annotation. */
+#if TARGET_OS_IPHONE
 @property (nonatomic, readonly) UIImage *image;
+#else
+@property (nonatomic, readonly) NSImage *image;
+#endif
 
 /** The string that identifies that this annotation image is reusable. (read-only)
 *
@@ -30,7 +43,11 @@ NS_ASSUME_NONNULL_BEGIN
 /** A Boolean value indicating whether the annotation is enabled.
 *
 *   The default value of this property is `YES`. If the value of this property is `NO`, the annotation image ignores touch events and cannot be selected. */
+#if TARGET_OS_IPHONE
 @property (nonatomic, getter=isEnabled) BOOL enabled;
+#else
+@property (nonatomic, getter=isSelectable) BOOL selectable;
+#endif
 
 @end
 
