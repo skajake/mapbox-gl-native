@@ -28,11 +28,13 @@
       },
       
       'mac_framework_headers': [
+        'framework/Mapbox.h',
         '<!@(find ../include/mbgl/{darwin,osx} -type f \! -name \'.*\')',
       ],
       
       'sources': [
-        '../platform/osx/Mapbox.m',
+        'framework/Mapbox.h',
+        'framework/Mapbox.m',
       ],
       
       'direct_dependent_settings': {
