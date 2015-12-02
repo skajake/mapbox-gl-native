@@ -1,4 +1,4 @@
-language: android
+language: cpp
 
 sudo: false
 
@@ -6,95 +6,112 @@ matrix:
   exclude:
     - os: linux
   include:
-    - os: osx
-      osx_image: xcode7
-      env: FLAVOR=osx BUILDTYPE=Debug
-    - os: osx
-      osx_image: xcode7
-      compiler: clang
-      env: FLAVOR=node NODE_VERSION=5
-    - os: osx
-      osx_image: xcode7
-      compiler: clang
-      env: FLAVOR=node NODE_VERSION=4
-    - os: osx
-      osx_image: xcode7
-      compiler: clang
-      env: FLAVOR=node NODE_VERSION=0.12
-    - os: osx
-      osx_image: xcode7
-      compiler: clang
-      env: FLAVOR=node NODE_VERSION=0.10
+    # - os: osx
+    #   osx_image: xcode7
+    #   compiler: clang
+    #   env: FLAVOR=osx BUILDTYPE=Debug
+    # - os: osx
+    #   osx_image: xcode7
+    #   compiler: clang
+    #   env: FLAVOR=node NODE_VERSION=5
+    # - os: osx
+    #   osx_image: xcode7
+    #   compiler: clang
+    #   env: FLAVOR=node NODE_VERSION=4
+    # - os: osx
+    #   osx_image: xcode7
+    #   compiler: clang
+    #   env: FLAVOR=node NODE_VERSION=0.12
+    # - os: osx
+    #   osx_image: xcode7
+    #   compiler: clang
+    #   env: FLAVOR=node NODE_VERSION=0.10
+
+    # Node.js 5 - Clang 3.5 - Release
     - os: linux
-      env: FLAVOR=node CXX=clang++-3.5 BUILDTYPE=Release NODE_VERSION=5
-      addons:
+      compiler: ": node5-clang35-release"
+      env: FLAVOR=node BUILDTYPE=Release NODE_VERSION=5 COMPILER=clang++-3.5 CCACHE=1
+      addons: &clang35
         apt:
           sources: [ 'ubuntu-toolchain-r-test', 'llvm-toolchain-precise-3.5' ]
           packages: [ 'gdb', 'clang-3.5', 'libstdc++-4.9-dev', 'libstdc++6', 'libllvm3.4', 'xutils-dev', 'libxxf86vm-dev', 'x11proto-xf86vidmode-dev', 'mesa-utils' ]
+
+    # Node.js 4 - Clang 3.5 - Release
     - os: linux
-      env: FLAVOR=node CXX=clang++-3.5 BUILDTYPE=Release NODE_VERSION=4
-      addons:
-        apt:
-          sources: [ 'ubuntu-toolchain-r-test', 'llvm-toolchain-precise-3.5' ]
-          packages: [ 'gdb', 'clang-3.5', 'libstdc++-4.9-dev', 'libstdc++6', 'libllvm3.4', 'xutils-dev', 'libxxf86vm-dev', 'x11proto-xf86vidmode-dev', 'mesa-utils' ]
+      compiler: ": node4-clang35-release"
+      env: FLAVOR=node BUILDTYPE=Release NODE_VERSION=4 COMPILER=clang++-3.5 CCACHE=1
+      addons: *clang35
+
+    # Node.js 0.12 - Clang 3.5 - Release
     - os: linux
-      env: FLAVOR=node CXX=clang++-3.5 BUILDTYPE=Release NODE_VERSION=0.12
-      addons:
-        apt:
-          sources: [ 'ubuntu-toolchain-r-test', 'llvm-toolchain-precise-3.5' ]
-          packages: [ 'gdb', 'clang-3.5', 'libstdc++-4.9-dev', 'libstdc++6', 'libllvm3.4', 'xutils-dev', 'libxxf86vm-dev', 'x11proto-xf86vidmode-dev', 'mesa-utils' ]
+      compiler: ": node-0.12-clang35-release"
+      env: FLAVOR=node BUILDTYPE=Release NODE_VERSION=0.12 COMPILER=clang++-3.5 CCACHE=1
+      addons: *clang35
+
+    # Node.js 0.10 - Clang 3.5 - Release
     - os: linux
-      env: FLAVOR=node CXX=clang++-3.5 BUILDTYPE=Release NODE_VERSION=0.10
-      addons:
-        apt:
-          sources: [ 'ubuntu-toolchain-r-test', 'llvm-toolchain-precise-3.5' ]
-          packages: [ 'gdb', 'clang-3.5', 'libstdc++-4.9-dev', 'libstdc++6', 'libllvm3.4', 'xutils-dev', 'libxxf86vm-dev', 'x11proto-xf86vidmode-dev', 'mesa-utils' ]
+      compiler: ": node0.10-clang35-release"
+      env: FLAVOR=node BUILDTYPE=Release NODE_VERSION=0.10 COMPILER=clang++-3.5 CCACHE=1
+      addons: *clang35
+
+    # # Linux - Release - GCC 4.9
     - os: linux
-      env: FLAVOR=linux CXX=g++-4.9 BUILDTYPE=Release
-      addons:
+      compiler: ": linux-gcc49-release"
+      env: FLAVOR=linux BUILDTYPE=Release COMPILER=g++-4.9 CCACHE=1
+      addons: &gcc49
         apt:
           sources: [ 'ubuntu-toolchain-r-test' ]
           packages: [ 'gdb', 'g++-4.9', 'gcc-4.9', 'libllvm3.4', 'xutils-dev', 'libxxf86vm-dev', 'x11proto-xf86vidmode-dev', 'mesa-utils' ]
+
+    # Linux - Clang 3.5 - Debug
     - os: linux
-      env: FLAVOR=linux CXX=clang++-3.5 BUILDTYPE=Debug
-      addons:
-        apt:
-          sources: [ 'ubuntu-toolchain-r-test', 'llvm-toolchain-precise-3.5' ]
-          packages: [ 'gdb', 'clang-3.5', 'libstdc++-4.9-dev', 'libstdc++6', 'libllvm3.4', 'xutils-dev', 'libxxf86vm-dev', 'x11proto-xf86vidmode-dev', 'mesa-utils' ]
+      compiler: ": linux-clang35-debug"
+      env: FLAVOR=linux BUILDTYPE=Debug COMPILER=clang++-3.5 CCACHE=1
+      addons: *clang35
+
+    # Linux - Clang 3.5 - Release
     - os: linux
-      env: FLAVOR=linux CXX=clang++-3.5 BUILDTYPE=Release
-      addons:
-        apt:
-          sources: [ 'ubuntu-toolchain-r-test', 'llvm-toolchain-precise-3.5' ]
-          packages: [ 'gdb', 'clang-3.5', 'libstdc++-4.9-dev', 'libstdc++6', 'libllvm3.4', 'xutils-dev', 'libxxf86vm-dev', 'x11proto-xf86vidmode-dev', 'mesa-utils' ]
-    - os: linux
-      env: FLAVOR=android ANDROID_ABI=arm-v7 BUILDTYPE=Release
-      android:
-        components: [ 'tools', 'platform-tools', 'build-tools-23.0.2', 'android-23', 'extra-android-m2repository', 'extra-android-support', 'extra-google-m2repository' ]
-      addons:
-        apt:
-          packages: [ 'lib32stdc++6' ]
-    - os: linux
-      env: FLAVOR=android ANDROID_ABI=arm-v7 BUILDTYPE=Debug
-      android:
-        components: [ 'tools', 'platform-tools', 'build-tools-23.0.2', 'android-23', 'extra-android-m2repository', 'extra-android-support', 'extra-google-m2repository' ]
-      addons:
-        apt:
-          packages: [ 'lib32stdc++6' ]
-    - os: linux
-      env: FLAVOR=android ANDROID_ABI=arm-v8 BUILDTYPE=Release
-      android:
-        components: [ 'tools', 'platform-tools', 'build-tools-23.0.2', 'android-23', 'extra-android-m2repository', 'extra-android-support', 'extra-google-m2repository' ]
-      addons:
-        apt:
-          packages: [ 'lib32stdc++6' ]
-    - os: linux
-      env: FLAVOR=android ANDROID_ABI=x86 BUILDTYPE=Release
-      android:
-        components: [ 'tools', 'platform-tools', 'build-tools-23.0.2', 'android-23', 'extra-android-m2repository', 'extra-android-support', 'extra-google-m2repository' ]
-      addons:
-        apt:
-          packages: [ 'lib32stdc++6' ]
+      compiler: ": linux-clang35-release"
+      env: FLAVOR=linux BUILDTYPE=Release COMPILER=clang++-3.5 CCACHE=1
+      addons: *clang35
+
+    # Android - arm-v7 - Release
+    # - os: linux
+    #   compiler: ": android-arm-v7-release"
+    #   env: FLAVOR=android ANDROID_ABI=arm-v7 BUILDTYPE=Release
+    #   android: &android
+    #     components: [ 'tools', 'platform-tools', 'build-tools-23.0.2', 'android-23', 'extra-android-m2repository', 'extra-android-support', 'extra-google-m2repository' ]
+    #   addons: &lib32stdc
+    #     apt:
+    #       packages: [ 'lib32stdc++6' ]
+    # - os: linux
+    #   env: FLAVOR=android ANDROID_ABI=arm-v7 BUILDTYPE=Debug
+    #   android:
+    #     components: [ 'tools', 'platform-tools', 'build-tools-23.0.2', 'android-23', 'extra-android-m2repository', 'extra-android-support', 'extra-google-m2repository' ]
+    #   addons:
+    #     apt:
+    #       packages: [ 'lib32stdc++6' ]
+    # - os: linux
+    #   env: FLAVOR=android ANDROID_ABI=arm-v8 BUILDTYPE=Release
+    #   android:
+    #     components: [ 'tools', 'platform-tools', 'build-tools-23.0.2', 'android-23', 'extra-android-m2repository', 'extra-android-support', 'extra-google-m2repository' ]
+    #   addons:
+    #     apt:
+    #       packages: [ 'lib32stdc++6' ]
+    # - os: linux
+    #   env: FLAVOR=android ANDROID_ABI=x86 BUILDTYPE=Release
+    #   android:
+    #     components: [ 'tools', 'platform-tools', 'build-tools-23.0.2', 'android-23', 'extra-android-m2repository', 'extra-android-support', 'extra-google-m2repository' ]
+    #   addons:
+    #     apt:
+    #       packages: [ 'lib32stdc++6' ]
+
+cache:
+  directories:
+    - $HOME/.ccache
+    - $HOME/.cache/pip
+    - $HOME/build/mapbox/mapbox-gl-native/.binaries
+    - $HOME/build/mapbox/mapbox-gl-native/.scripts
 
 env:
   global:
@@ -115,10 +132,14 @@ env:
     - KIF_SCREENSHOTS="${TRAVIS_BUILD_DIR}/screenshots"
 
 before_install:
+- source ./scripts/set_compiler.sh
 - source ./scripts/travis_helper.sh
 
 install:
 - ./scripts/${FLAVOR}/install.sh
+
+before_script:
+- ccache --zero-stats
 
 script:
 - ./scripts/${FLAVOR}/run.sh
@@ -127,6 +148,7 @@ after_failure:
 - "[ -f ./scripts/${FLAVOR}/after_failure.sh ] && ./scripts/${FLAVOR}/after_failure.sh"
 
 after_script:
+- ccache --show-stats
 - "[ -f ./scripts/${FLAVOR}/after_script.sh ] && ./scripts/${FLAVOR}/after_script.sh"
 
 notifications:
