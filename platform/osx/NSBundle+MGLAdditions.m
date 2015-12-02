@@ -7,14 +7,13 @@ void mgl_linkBundleCategory() {}
 @implementation NSBundle (MGLAdditions)
 
 + (instancetype)mgl_resourceBundle {
-    return [self bundleWithPath:[self mgl_resourceBundlePath]];
+    return [self bundleWithPath:self.mgl_resourceBundlePath];
 }
 
 + (NSString *)mgl_resourceBundlePath {
-    NSString *resourceBundlePath = [[self bundleForClass:[MGLAccountManager class]]
-                                    pathForResource:@"Mapbox" ofType:@"bundle"];
+    NSString *resourceBundlePath = [self bundleForClass:[MGLAccountManager class]].resourcePath;
     if (!resourceBundlePath) {
-        resourceBundlePath = [[self mainBundle] bundlePath];
+        resourceBundlePath = self.mainBundle.resourcePath;
     }
     return resourceBundlePath;
 }

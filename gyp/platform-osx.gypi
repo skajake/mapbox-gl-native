@@ -62,7 +62,6 @@
         '../platform/osx/NSBundle+MGLAdditions.m',
         '../platform/osx/NSProcessInfo+MGLAdditions.h',
         '../platform/osx/NSProcessInfo+MGLAdditions.m',
-        '../platform/osx/resources/',
       ],
 
       'variables': {
@@ -73,13 +72,11 @@
         ],
         'libraries': [
           '<@(libuv_static_libs)',
-        ],
-        'ldflags': [
-          '-framework Cocoa',
-          '-framework CoreLocation',
-          '-framework OpenGL',
-          '-framework QuartzCore',
-          '-framework SystemConfiguration',
+          '$(SDKROOT)/System/Library/Frameworks/Cocoa.framework',
+          '$(SDKROOT)/System/Library/Frameworks/CoreLocation.framework',
+          '$(SDKROOT)/System/Library/Frameworks/OpenGL.framework',
+          '$(SDKROOT)/System/Library/Frameworks/QuartzCore.framework',
+          '$(SDKROOT)/System/Library/Frameworks/SystemConfiguration.framework',
         ],
       },
 
@@ -97,9 +94,6 @@
 
       'link_settings': {
         'libraries': [ '<@(libraries)' ],
-        'xcode_settings': {
-          'OTHER_LDFLAGS': [ '<@(ldflags)' ],
-        },
       },
 
       'direct_dependent_settings': {
@@ -109,7 +103,7 @@
           '../include',
         ],
         'mac_bundle_resources': [
-          '<!@(find ../platform/osx/resources -type f \! -name "README")',
+          '<!@(find ../platform/osx/resources -type f \! -name \'.*\')',
         ],
       },
     },
