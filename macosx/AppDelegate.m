@@ -243,7 +243,7 @@ static NSString * const MGLDroppedPinAnnotationImageIdentifier = @"dropped";
     
     NSRect bounds = self.mapView.bounds;
     NSMutableArray *annotations = [NSMutableArray array];
-    for (CGFloat x = NSMinX(bounds); x < NSMaxX(bounds); x += arc4random_uniform(100)) {
+    for (CGFloat x = NSMinX(bounds); x < NSMaxX(bounds); x += arc4random_uniform(50)) {
         for (CGFloat y = NSMaxY(bounds); y >= NSMinY(bounds); y -= arc4random_uniform(100)) {
             [annotations addObject:[self pinAtPoint:NSMakePoint(x, y)]];
         }
