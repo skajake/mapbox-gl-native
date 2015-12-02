@@ -21,6 +21,7 @@
         'SDKROOT': 'macosx',
         'SUPPORTED_PLATFORMS':'macosx',
         'OTHER_LDFLAGS': [ '-stdlib=libc++', '-lstdc++' ],
+        'INSTALL_PATH': '@executable_path/../Frameworks',
         'INFOPLIST_FILE': '../macosx/framework/Info.plist',
         'CLANG_ENABLE_OBJC_ARC': 'YES',
         'PRODUCT_BUNDLE_IDENTIFIER': 'com.mapbox.MapboxGL',
