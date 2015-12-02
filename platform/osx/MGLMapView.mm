@@ -39,29 +39,53 @@
 class MGLMapViewImpl;
 class MGLAnnotationContext;
 
+/// Distance from the edge of the view to ornament views (logo, attribution, etc.).
 const CGFloat MGLOrnamentPadding = 12;
 
+/// Alpha value of the ornament views (logo, attribution, etc.).
+const CGFloat MGLOrnamentOpacity = 0.9;
+
+/// Default duration for programmatic animations.
 const NSTimeInterval MGLAnimationDuration = 0.3;
+
+/// Distance in points that a single press of the panning keyboard shortcut pans the map by.
 const CGFloat MGLKeyPanningIncrement = 150;
+
+/// Degrees that a single press of the rotation keyboard shortcut rotates the map by.
 const CLLocationDegrees MGLKeyRotationIncrement = 25;
 
-static NSString * const MGLVendorDirectoryName = @"com.mapbox.MapboxGL";
-
+/// Reuse identifier and file name of the default point annotation image.
 static NSString * const MGLDefaultStyleMarkerSymbolName = @"default_marker";
+
+/// Prefix that denotes a sprite installed by MGLMapView, to avoid collisions
+/// with style-defined sprites.
 static NSString * const MGLAnnotationSpritePrefix = @"com.mapbox.sprites.";
+
+/// Slop area around the hit testing point, allowing for imprecise annotation selection.
 const CGFloat MGLAnnotationImagePaddingForHitTest = 4;
+
+/// Distance from the callout’s anchor point to the annotation it points to.
 const CGFloat MGLAnnotationImagePaddingForCallout = 4;
 
+/// Copyright notices displayed in the attribution view.
 struct MGLAttribution {
+    /// Attribution button label text. A copyright symbol is prepended to this string.
     NSString *title;
+    /// URL to open when the attribution button is clicked.
     NSString *urlString;
 } MGLAttributions[] = {
     { @"Mapbox", @"https://www.mapbox.com/about/maps/" },
     { @"OpenStreetMap", @"http://www.openstreetmap.org/about/" },
 };
 
+/// Unique identifier representing a single annotation in mbgl.
 typedef uint32_t MGLAnnotationID;
+
+/// An indication that the requested annotation was not found or is nonexistent.
 enum { MGLAnnotationNotFound = UINT32_MAX };
+
+/// Mapping from an annotation’s unique identifier to metadata about that
+/// annotation, including the annotation itself.
 typedef std::map<MGLAnnotationID, MGLAnnotationContext> MGLAnnotationContextMap;
 
 /// Returns an NSImage for the default marker image.
@@ -71,8 +95,10 @@ NSImage *MGLDefaultMarkerImage() {
     return [[NSImage alloc] initWithContentsOfFile:path];
 }
 
-std::chrono::steady_clock::duration MGLDurationInSeconds(float duration) {
-    return std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<float, std::chrono::seconds::period>(duration));
+/// Converts from a duration in seconds to a duration object usable in mbgl.
+std::chrono::steady_clock::duration MGLDurationInSeconds(NSTimeInterval duration) {
+    return std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+        std::chrono::duration<NSTimeInterval, std::chrono::seconds::period>(duration));
 }
 
 /// Converts the given color into an mbgl::Color in calibrated RGB space.
@@ -85,9 +111,12 @@ mbgl::Color MGLColorObjectFromNSColor(NSColor *color) {
     return {{ (float)r, (float)g, (float)b, (float)a }};
 }
 
+/// Lightweight container for metadata about an annotation, including the annotation itself.
 class MGLAnnotationContext {
 public:
     id <MGLAnnotation> annotation;
+    /// mbgl-given identifier for the annotation image used by this annotation.
+    /// Based on the annotation image’s reusable identifier.
     NSString *symbolIdentifier;
 };
 
@@ -98,7 +127,9 @@ public:
 @property (nonatomic, readwrite) NSImageView *logoView;
 @property (nonatomic, readwrite) NSView *attributionView;
 
+/// Mapping from reusable identifiers to annotation images.
 @property (nonatomic) NS_MUTABLE_DICTIONARY_OF(NSString *, MGLAnnotationImage *) *annotationImagesByIdentifier;
+/// Currently shown popover representing the selected annotation.
 @property (nonatomic) NSPopover *calloutForSelectedAnnotation;
 
 @property (nonatomic, readwrite, getter=isDormant) BOOL dormant;
@@ -106,7 +137,9 @@ public:
 @end
 
 @implementation MGLMapView {
+    /// Cross-platform map view controller.
     mbgl::Map *_mbglMap;
+    /// Adapter responsible for bridging calls from mbgl to MGLMapView and Cocoa.
     MGLMapViewImpl *_mbglView;
     std::shared_ptr<mbgl::SQLiteCache> _mbglFileCache;
     mbgl::DefaultFileSource *_mbglFileSource;
@@ -121,15 +154,24 @@ public:
     MGLAnnotationContextMap _annotationContextsByAnnotationID;
     MGLAnnotationID _selectedAnnotationID;
     MGLAnnotationID _lastSelectedAnnotationID;
+    /// Size of the rectangle formed by unioning the maximum slop area around every annotation image.
     NSSize _unionedAnnotationImageSize;
     std::vector<MGLAnnotationID> _annotationsNearbyLastClick;
+    /// True if any annotations that have tooltips have been installed.
     BOOL _wantsToolTipRects;
+    /// True if any annotation images that have custom cursors have been installed.
     BOOL _wantsCursorRects;
+    
+    // Cached checks for delegate method implementations
+    
     BOOL _delegateHasAlphasForShapeAnnotations;
     BOOL _delegateHasStrokeColorsForShapeAnnotations;
     BOOL _delegateHasFillColorsForShapeAnnotations;
     BOOL _delegateHasLineWidthsForShapeAnnotations;
     
+    /// True if the current process is the Interface Builder designable
+    /// renderer. When drawing the designable, the map is paused, so any call to
+    /// it may hang the process.
     BOOL _isTargetingInterfaceBuilder;
     CLLocationDegrees _pendingLatitude;
     CLLocationDegrees _pendingLongitude;
@@ -173,6 +215,7 @@ public:
 - (void)commonInit {
     _isTargetingInterfaceBuilder = NSProcessInfo.processInfo.mgl_isInterfaceBuilderDesignablesAgent;
     
+    // Set up cross-platform controllers and resources.
     _mbglView = new MGLMapViewImpl(self, [NSScreen mainScreen].backingScaleFactor);
     
     // Place the cache in a location that can be shared among all the
@@ -182,7 +225,8 @@ public:
                                                              appropriateForURL:nil
                                                                         create:YES
                                                                          error:nil];
-    cacheDirectoryURL = [cacheDirectoryURL URLByAppendingPathComponent:MGLVendorDirectoryName];
+    cacheDirectoryURL = [cacheDirectoryURL URLByAppendingPathComponent:
+                         [[NSBundle mgl_frameworkBundle] bundleIdentifier]];
     [[NSFileManager defaultManager] createDirectoryAtURL:cacheDirectoryURL
                              withIntermediateDirectories:YES
                                               attributes:nil
@@ -194,6 +238,8 @@ public:
     
     _mbglMap = new mbgl::Map(*_mbglView, *_mbglFileSource, mbgl::MapMode::Continuous);
     
+    // Install the OpenGL layer. Interface Builder’s synchronous drawing means
+    // we can’t display a map, so don’t even bother to have a map layer.
     self.layer = _isTargetingInterfaceBuilder ? [CALayer layer] : [MGLOpenGLLayer layer];
     
     // Observe for changes to the global access token (and find out the current one).
@@ -210,32 +256,36 @@ public:
     };
     [reachability startNotifier];
     
+    // Install ornaments and gesture recognizers.
     [self installZoomControls];
     [self installCompass];
     [self installLogoView];
     [self installAttributionView];
     [self installGestureRecognizers];
     
+    // Set up annotation management and selection state.
     _annotationImagesByIdentifier = [NSMutableDictionary dictionary];
     _annotationContextsByAnnotationID = {};
     _selectedAnnotationID = MGLAnnotationNotFound;
     _lastSelectedAnnotationID = MGLAnnotationNotFound;
     _annotationsNearbyLastClick = {};
     
+    // Jump to Null Island initially.
     mbgl::CameraOptions options;
     options.center = mbgl::LatLng(0, 0);
     options.zoom = _mbglMap->getMinZoom();
     _mbglMap->jumpTo(options);
 }
 
+/// Adds zoom controls to the lower-right corner.
 - (void)installZoomControls {
     _zoomControls = [[NSSegmentedControl alloc] initWithFrame:NSZeroRect];
     _zoomControls.wantsLayer = YES;
-    _zoomControls.layer.opacity = 0.9;
+    _zoomControls.layer.opacity = MGLOrnamentOpacity;
     [(NSSegmentedCell *)_zoomControls.cell setTrackingMode:NSSegmentSwitchTrackingMomentary];
     _zoomControls.continuous = YES;
     _zoomControls.segmentCount = 2;
-    [_zoomControls setLabel:@"−" forSegment:0];
+    [_zoomControls setLabel:@"−" forSegment:0]; // U+2212 MINUS SIGN
     [(NSSegmentedCell *)_zoomControls.cell setTag:0 forSegment:0];
     [(NSSegmentedCell *)_zoomControls.cell setToolTip:@"Zoom Out" forSegment:0];
     [_zoomControls setLabel:@"+" forSegment:1];
@@ -249,10 +299,11 @@ public:
     [self addSubview:_zoomControls];
 }
 
+/// Adds a rudimentary compass control to the lower-right corner.
 - (void)installCompass {
     _compass = [[NSSlider alloc] initWithFrame:NSZeroRect];
     _compass.wantsLayer = YES;
-    _compass.layer.opacity = 0.9;
+    _compass.layer.opacity = MGLOrnamentOpacity;
     _compass.cell = [[MGLCompassCell alloc] init];
     _compass.continuous = YES;
     _compass.target = self;
@@ -262,11 +313,13 @@ public:
     [self addSubview:_compass];
 }
 
+/// Adds a Mapbox logo to the lower-left corner.
 - (void)installLogoView {
     _logoView = [[NSImageView alloc] initWithFrame:NSZeroRect];
     _logoView.wantsLayer = YES;
     NSImage *logoImage = [[NSImage alloc] initWithContentsOfFile:
                           [[NSBundle mgl_frameworkBundle] pathForResource:@"mapbox" ofType:@"pdf"]];
+    // Account for the image’s built-in padding when aligning other controls to the logo.
     logoImage.alignmentRect = NSInsetRect(logoImage.alignmentRect, 3, 3);
     _logoView.image = logoImage;
     _logoView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -274,22 +327,36 @@ public:
     [self addSubview:_logoView];
 }
 
+/// Adds legally required map attribution to the lower-left corner.
 - (void)installAttributionView {
     _attributionView = [[NSView alloc] initWithFrame:NSZeroRect];
     _attributionView.wantsLayer = YES;
+    
+    // Make the background and foreground translucent to be unobtrusive.
     _attributionView.layer.opacity = 0.6;
+    
+    // Blur the background to prevent text underneath the view from running into
+    // the text in the view, rendering it illegible.
     CIFilter *attributionBlurFilter = [CIFilter filterWithName:@"CIGaussianBlur"];
     [attributionBlurFilter setDefaults];
+    
+    // Brighten the background. This is similar to applying a translucent white
+    // background on the view, but the effect is a bit more subtle and works
+    // well with the blur above.
     CIFilter *attributionColorFilter = [CIFilter filterWithName:@"CIColorControls"];
     [attributionColorFilter setDefaults];
     [attributionColorFilter setValue:@(0.1) forKey:kCIInputBrightnessKey];
+    
+    // Apply the background effects and a standard button corner radius.
     _attributionView.backgroundFilters = @[attributionColorFilter, attributionBlurFilter];
     _attributionView.layer.cornerRadius = 4;
+    
     _attributionView.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_attributionView];
     [self updateAttributionView];
 }
 
+/// Adds gesture recognizers for manipulating the viewport and selecting annotations.
 - (void)installGestureRecognizers {
     self.acceptsTouchEvents = YES;
     _scrollEnabled = YES;
@@ -321,18 +388,24 @@ public:
     [self addGestureRecognizer:_rotationGestureRecognizer];
 }
 
+/// Updates the attribution view to reflect the sources used. For now, this is
+/// hard-coded to the standard Mapbox and OpenStreetMap attribution.
 - (void)updateAttributionView {
     self.attributionView.subviews = @[];
     
     for (NSUInteger i = 0; i < sizeof(MGLAttributions) / sizeof(MGLAttributions[0]); i++) {
+        // For each attribution, add a borderless button that responds to clicks
+        // and feels like a hyperlink.
         NSURL *url = [NSURL URLWithString:MGLAttributions[i].urlString];
         NSButton *button = [[MGLAttributionButton alloc] initWithTitle:MGLAttributions[i].title URL:url];
         button.controlSize = NSMiniControlSize;
         button.translatesAutoresizingMaskIntoConstraints = NO;
         
+        // Set the new button flush with the buttom of the container and to the
+        // right of the previous button, with standard spacing. If there is no
+        // previous button, align to the container instead.
         NSView *previousView = self.attributionView.subviews.lastObject;
         [self.attributionView addSubview:button];
-        
         [_attributionView addConstraint:
          [NSLayoutConstraint constraintWithItem:button
                                       attribute:NSLayoutAttributeBottom
@@ -355,6 +428,7 @@ public:
 - (void)dealloc {
     [[MGLAccountManager sharedManager] removeObserver:self forKeyPath:@"accessToken"];
     
+    // Close any annotation callout immediately.
     [self.calloutForSelectedAnnotation close];
     self.calloutForSelectedAnnotation = nil;
     
@@ -377,7 +451,7 @@ public:
     if ([keyPath isEqualToString:@"accessToken"] && object == [MGLAccountManager sharedManager]) {
         NSString *accessToken = change[NSKeyValueChangeNewKey];
         if (![accessToken isKindOfClass:[NSNull class]]) {
-            _mbglFileSource->setAccessToken((std::string)[accessToken UTF8String]);
+            _mbglFileSource->setAccessToken((std::string)accessToken.UTF8String);
         }
     }
 }
@@ -385,6 +459,8 @@ public:
 - (void)setDelegate:(id<MGLMapViewDelegate>)delegate {
     _delegate = delegate;
     
+    // Cache checks for delegate method implementations that may be called in a
+    // hot loop, namely the annotation style methods.
     _delegateHasAlphasForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:alphaForShapeAnnotation:)];
     _delegateHasStrokeColorsForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:strokeColorForShapeAnnotation:)];
     _delegateHasFillColorsForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:fillColorForPolygonAnnotation:)];
@@ -403,7 +479,10 @@ public:
         return;
     }
     
+    // Default to Streets.
     if (!styleURL) {
+        // An access token is required to load any default style, including
+        // Streets.
         if (![MGLAccountManager accessToken]) {
             return;
         }
@@ -411,11 +490,12 @@ public:
     }
     
     if (![styleURL scheme]) {
-        // Assume a relative path into the application’s resource folder.
-        styleURL = [NSURL URLWithString:[@"asset://" stringByAppendingString:[styleURL absoluteString]]];
+        // Assume a relative path into the application’s resource folder,
+        // defined in mbgl::platform::assetRoot().
+        styleURL = [NSURL URLWithString:[@"asset://" stringByAppendingString:styleURL.absoluteString]];
     }
     
-    _mbglMap->setStyleURL([[styleURL absoluteString] UTF8String]);
+    _mbglMap->setStyleURL(styleURL.absoluteString.UTF8String);
 }
 
 - (IBAction)reloadStyle:(__unused id)sender {
@@ -446,6 +526,8 @@ public:
 }
 
 - (BOOL)wantsBestResolutionOpenGLSurface {
+    // Use an OpenGL layer, except when drawing the designable, which is just
+    // ordinary Cocoa.
     return !_isTargetingInterfaceBuilder;
 }
 
@@ -457,6 +539,7 @@ public:
 }
 
 - (void)updateConstraints {
+    // Place the zoom controls at the lower-right corner of the view.
     [self addConstraint:
      [NSLayoutConstraint constraintWithItem:self
                                   attribute:NSLayoutAttributeBottom
@@ -474,6 +557,8 @@ public:
                                  multiplier:1
                                    constant:MGLOrnamentPadding]];
     
+    // Center the compass above the zoom controls, assuming that the compass is
+    // narrower than the zoom controls.
     [self addConstraint:
      [NSLayoutConstraint constraintWithItem:_compass
                                   attribute:NSLayoutAttributeCenterX
@@ -491,6 +576,8 @@ public:
                                  multiplier:1
                                    constant:8]];
     
+    // Place the logo view in the lower-left corner of the view, accounting for
+    // the logo’s alignment rect.
     [self addConstraint:
      [NSLayoutConstraint constraintWithItem:self
                                   attribute:NSLayoutAttributeBottom
@@ -508,6 +595,8 @@ public:
                                  multiplier:1
                                    constant:MGLOrnamentPadding - _logoView.image.alignmentRect.origin.x]];
     
+    // Place the attribution view to the right of the logo view and size it to
+    // fit the buttons inside.
     [self addConstraint:[NSLayoutConstraint constraintWithItem:_logoView
                                                      attribute:NSLayoutAttributeBaseline
                                                      relatedBy:NSLayoutRelationEqual
@@ -580,6 +669,8 @@ public:
         }
         case mbgl::MapChangeRegionIsChanging:
         {
+            // Update a minimum of UI that needs to stay attached to the map
+            // while animating.
             [self updateCompass];
             [self updateAnnotationCallouts];
             
@@ -591,6 +682,11 @@ public:
         case mbgl::MapChangeRegionDidChange:
         case mbgl::MapChangeRegionDidChangeAnimated:
         {
+            // Update all UI at the end of an animation or atomic change to the
+            // viewport. More expensive updates can happen here, but care should
+            // still be taken to minimize the work done here because scroll
+            // gesture recognition and momentum scrolling is performed as a
+            // series of atomic changes, not an animation.
             [self updateZoomControls];
             [self updateCompass];
             [self updateAnnotationCallouts];
@@ -708,12 +804,15 @@ public:
     return _mbglMap->getMinZoom();
 }
 
+/// Respond to a click on the zoom control.
 - (IBAction)zoomInOrOut:(NSSegmentedControl *)sender {
     switch (sender.selectedSegment) {
         case 0:
+            // Zoom out.
             [self moveToEndOfParagraph:sender];
             break;
         case 1:
+            // Zoom in.
             [self moveToBeginningOfParagraph:sender];
             break;
         default:
@@ -761,7 +860,7 @@ public:
 - (void)setVisibleCoordinateBounds:(MGLCoordinateBounds)bounds edgePadding:(NSEdgeInsets)insets animated:(BOOL)animated {
     _mbglMap->cancelTransitions();
     
-    mbgl::EdgeInsets mbglInsets = {insets.top, insets.left, insets.bottom, insets.right};
+    mbgl::EdgeInsets mbglInsets = MGLEdgeInsetsFromNSEdgeInsets(insets);
     mbgl::CameraOptions options = _mbglMap->cameraForLatLngBounds(MGLLatLngBoundsFromCoordinateBounds(bounds), mbglInsets);
     if (animated) {
         options.duration = MGLDurationInSeconds(MGLAnimationDuration);
@@ -780,6 +879,8 @@ public:
     return YES;
 }
 
+/// Drag to pan, plus drag to zoom, rotate, and tilt when a modifier key is held
+/// down.
 - (void)handlePanGesture:(NSPanGestureRecognizer *)gestureRecognizer {
     NSPoint delta = [gestureRecognizer translationInView:self];
     NSPoint endPoint = [gestureRecognizer locationInView:self];
@@ -787,6 +888,7 @@ public:
     
     NSEventModifierFlags flags = [NSApp currentEvent].modifierFlags;
     if (flags & NSShiftKeyMask) {
+        // Shift-drag to zoom.
         if (!self.zoomEnabled) {
             return;
         }
@@ -808,6 +910,7 @@ public:
             CGDisplayMoveCursorToPoint(kCGDirectMainDisplay, startPoint);
         }
     } else if (flags & NSAlternateKeyMask) {
+        // Option-drag to rotate and/or tilt.
         _mbglMap->cancelTransitions();
         
         if (gestureRecognizer.state == NSGestureRecognizerStateBegan) {
@@ -830,6 +933,7 @@ public:
             _mbglMap->setGestureInProgress(false);
         }
     } else if (self.scrollEnabled) {
+        // Otherwise, drag to pan.
         _mbglMap->cancelTransitions();
         
         if (gestureRecognizer.state == NSGestureRecognizerStateBegan) {
@@ -847,6 +951,7 @@ public:
     }
 }
 
+/// Pinch to zoom.
 - (void)handleMagnificationGesture:(NSMagnificationGestureRecognizer *)gestureRecognizer {
     if (!self.zoomEnabled) {
         return;
@@ -873,6 +978,7 @@ public:
     }
 }
 
+/// Click or tap to select an annotation.
 - (void)handleClickGesture:(NSClickGestureRecognizer *)gestureRecognizer {
     if (gestureRecognizer.state != NSGestureRecognizerStateEnded) {
         return;
@@ -891,6 +997,7 @@ public:
     }
 }
 
+/// Tap with two fingers (“right-click”) to zoom out.
 - (void)handleSecondaryClickGesture:(NSClickGestureRecognizer *)gestureRecognizer {
     if (!self.zoomEnabled) {
         return;
@@ -902,6 +1009,7 @@ public:
     [self scaleBy:0.5 atPoint:NSMakePoint(gesturePoint.x, self.bounds.size.height - gesturePoint.y) animated:YES];
 }
 
+/// Double-click or double-tap to zoom in.
 - (void)handleDoubleClickGesture:(NSClickGestureRecognizer *)gestureRecognizer {
     if (!self.zoomEnabled) {
         return;
@@ -913,6 +1021,7 @@ public:
     [self scaleBy:2 atPoint:NSMakePoint(gesturePoint.x, self.bounds.size.height - gesturePoint.y) animated:YES];
 }
 
+/// Rotate fingers to rotate.
 - (void)handleRotationGesture:(NSRotationGestureRecognizer *)gestureRecognizer {
     if (!self.rotateEnabled) {
         return;
@@ -934,6 +1043,7 @@ public:
 }
 
 - (BOOL)wantsScrollEventsForSwipeTrackingOnAxis:(__unused NSEventGestureAxis)axis {
+    // Track both horizontal and vertical swipes in -scrollWheel:.
     return YES;
 }
 
@@ -955,6 +1065,7 @@ public:
     } else if (self.scrollEnabled
                && _magnificationGestureRecognizer.state == NSGestureRecognizerStatePossible
                && _rotationGestureRecognizer.state == NSGestureRecognizerStatePossible) {
+        // Scroll to pan.
         _mbglMap->cancelTransitions();
         
         CGFloat x = event.scrollingDeltaX;
@@ -963,6 +1074,7 @@ public:
             [self offsetCenterCoordinateBy:NSMakePoint(x, y) animated:NO];
         }
         
+        // Drift pan.
         if (event.momentumPhase != NSEventPhaseNone) {
             [self offsetCenterCoordinateBy:NSMakePoint(x, y) animated:NO];
         }
@@ -973,6 +1085,9 @@ public:
 
 - (void)keyDown:(NSEvent *)event {
     if (event.modifierFlags & NSNumericPadKeyMask) {
+        // This is the recommended way to handle arrow key presses, causing
+        // methods like -moveUp: and -moveToBeginningOfParagraph: to be called
+        // for various standard keybindings.
         [self interpretKeyEvents:@[event]];
     } else {
         [super keyDown:event];
@@ -1033,12 +1148,16 @@ public:
 
 #pragma mark Ornaments
 
+/// Updates the zoom controls’ enabled state based on the current zoom level.
 - (void)updateZoomControls {
     [_zoomControls setEnabled:self.zoomLevel > self.minimumZoomLevel forSegment:0];
     [_zoomControls setEnabled:self.zoomLevel < self.maximumZoomLevel forSegment:1];
 }
 
+/// Updates the compass to point in the same direction as the map.
 - (void)updateCompass {
+    // The circular slider control goes counterclockwise, whereas our map
+    // measures its direction clockwise.
     _compass.doubleValue = -self.direction;
 }
 
