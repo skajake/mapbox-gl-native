@@ -34,17 +34,6 @@
         '../platform/osx/Mapbox.m',
       ],
       
-      'actions': [
-        {
-          'action_name': 'Add Version to Info.plist',
-          'action': ['../scripts/osx/version.sh'],
-          'inputs': [
-            '../scripts/osx/version.sh',
-          ],
-          'outputs': [],
-        },
-      ],
-      
       'direct_dependent_settings': {
         'libraries': [
           '$(SDKROOT)/System/Library/Frameworks/Cocoa.framework',
