@@ -27,7 +27,7 @@ export BUILDTYPE=${BUILDTYPE:-Release}
 export HOST=osx
 make Xcode/osx
 
-step "Building OS X targets..."
+step "Building OS X framework (build ${TRAVIS_JOB_NUMBER:-${BITRISE_BUILD_NUMBER:-0}})..."
 xcodebuild -sdk macosx${OSX_SDK_VERSION} \
     ARCHS="x86_64" \
     ONLY_ACTIVE_ARCH=NO \
