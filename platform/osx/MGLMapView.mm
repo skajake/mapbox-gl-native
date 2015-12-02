@@ -139,7 +139,6 @@ public:
 @implementation MGLMapView {
     /// Cross-platform map view controller.
     mbgl::Map *_mbglMap;
-    /// Adapter responsible for bridging calls from mbgl to MGLMapView and Cocoa.
     MGLMapViewImpl *_mbglView;
     std::shared_ptr<mbgl::SQLiteCache> _mbglFileCache;
     mbgl::DefaultFileSource *_mbglFileSource;
@@ -162,7 +161,8 @@ public:
     /// True if any annotation images that have custom cursors have been installed.
     BOOL _wantsCursorRects;
     
-    // Cached checks for delegate method implementations
+    // Cached checks for delegate method implementations that may be called from
+    // MGLMultiPointDelegate methods.
     
     BOOL _delegateHasAlphasForShapeAnnotations;
     BOOL _delegateHasStrokeColorsForShapeAnnotations;
@@ -1172,7 +1172,8 @@ public:
         return nil;
     }
     
-    std::vector<id <MGLAnnotation> > annotations;
+    // Map all the annotation IDs to the annotations themselves.
+    std::vector<id <MGLAnnotation>> annotations;
     std::transform(_annotationContextsByAnnotationID.begin(),
                    _annotationContextsByAnnotationID.end(),
                    std::back_inserter(annotations),
@@ -1182,6 +1183,7 @@ public:
     return [NSArray arrayWithObjects:&annotations[0] count:annotations.size()];
 }
 
+/// Returns the annotation assigned the given ID. Cheap.
 - (id <MGLAnnotation>)annotationWithID:(MGLAnnotationID)annotationID {
     if (!_annotationContextsByAnnotationID.count(annotationID)) {
         return nil;
@@ -1191,6 +1193,7 @@ public:
     return annotationContext.annotation;
 }
 
+/// Returns the annotation ID assigned to the given annotation. Relatively expensive.
 - (MGLAnnotationID)annotationIDForAnnotation:(id <MGLAnnotation>)annotation {
     if (!annotation) {
         return MGLAnnotationNotFound;
@@ -1224,6 +1227,7 @@ public:
         NSAssert([annotation conformsToProtocol:@protocol(MGLAnnotation)], @"Annotation does not conform to MGLAnnotation");
         
         if ([annotation isKindOfClass:[MGLMultiPoint class]]) {
+            // The multipoint knows how to style itself (with the map view’s help).
             [(MGLMultiPoint *)annotation addShapeAnnotationObjectToCollection:shapes withDelegate:self];
         } else {
             MGLAnnotationImage *annotationImage = nil;
@@ -1234,6 +1238,9 @@ public:
                 annotationImage = [self dequeueReusableAnnotationImageWithIdentifier:MGLDefaultStyleMarkerSymbolName];
             }
             if (!annotationImage) {
+                // Create a default annotation image that depicts a round pin
+                // rising from the center, with a shadow slightly below center.
+                // The alignment rect therefore excludes the bottom half.
                 NSImage *image = MGLDefaultMarkerImage();
                 NSRect alignmentRect = image.alignmentRect;
                 alignmentRect.origin.y = NSMidY(alignmentRect);
@@ -1251,12 +1258,14 @@ public:
             NSString *symbolName = [MGLAnnotationSpritePrefix stringByAppendingString:annotationImage.reuseIdentifier];
             points.emplace_back(MGLLatLngFromLocationCoordinate2D(annotation.coordinate), symbolName ? [symbolName UTF8String] : "");
             
+            // Opt into potentially expensive tooltip tracking areas.
             if (annotation.toolTip.length) {
                 _wantsToolTipRects = YES;
             }
         }
     }
     
+    // Add any point annotations to mbgl and our own index.
     if (points.size()) {
         std::vector<MGLAnnotationID> pointAnnotationIDs = _mbglMap->addPointAnnotations(points);
         
@@ -1268,6 +1277,7 @@ public:
         }
     }
     
+    // Add any shape annotations to mbgl and our own index.
     if (shapes.size()) {
         std::vector<MGLAnnotationID> shapeAnnotationIDs = _mbglMap->addShapeAnnotations(shapes);
         
@@ -1281,18 +1291,24 @@ public:
     [self updateAnnotationTrackingAreas];
 }
 
+/// Sends the raw pixel data of the annotation image’s image to mbgl and
+/// calculates state needed for hit testing later.
 - (void)installAnnotationImage:(MGLAnnotationImage *)annotationImage {
     NSImage *image = annotationImage.image;
     NSSize size = image.size;
-    if (size.width < 1 || size.height < 1 || !image.valid) {
+    if (size.width == 0 || size.height == 0 || !image.valid) {
+        // Can’t create an empty sprite. An image that hasn’t loaded is also useless.
         return;
     }
     
+    // Create a bitmap image representation from the image, respecting backing
+    // scale factor and any resizing done on the image at runtime.
     // http://www.cocoabuilder.com/archive/cocoa/82430-nsimage-getting-raw-bitmap-data.html#82431
     [image lockFocus];
     NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithFocusedViewRect:{ NSZeroPoint, size }];
     [image unlockFocus];
     
+    // Get the image’s raw pixel data as an RGBA buffer.
     std::string pixelString((const char *)rep.bitmapData, rep.pixelsWide * rep.pixelsHigh * 4 /* RGBA */);
     auto cSpriteImage = std::make_shared<mbgl::SpriteImage>((uint16_t)rep.size.width,
                                                             (uint16_t)rep.size.height,
@@ -1307,6 +1323,7 @@ public:
     _unionedAnnotationImageSize = NSMakeSize(MAX(_unionedAnnotationImageSize.width, size.width),
                                              MAX(_unionedAnnotationImageSize.height, size.height));
     
+    // Opt into potentially expensive cursor tracking areas.
     if (annotationImage.cursor) {
         _wantsCursorRects = YES;
     }
@@ -1358,6 +1375,8 @@ public:
 }
 
 - (nullable MGLAnnotationImage *)dequeueReusableAnnotationImageWithIdentifier:(NSString *)identifier {
+    // This prefix is used to avoid collisions with style-defined sprites in
+    // mbgl, but reusable identifiers are never prefixed.
     if ([identifier hasPrefix:MGLAnnotationSpritePrefix]) {
         identifier = [identifier substringFromIndex:MGLAnnotationSpritePrefix.length];
     }
@@ -1368,6 +1387,18 @@ public:
     return [self annotationWithID:[self annotationIDAtPoint:point persistingResults:NO]];
 }
 
+/**
+    Returns the ID of the annotation at the given point in the view.
+    
+    This is more involved than it sounds: if multiple point annotations overlap
+    near the point, this method cycles through them so that each of them is
+    accessible to the user at some point.
+    
+    @param persist True to remember the cycleable set of annotations, so that a
+        different annotation is returned the next time this method is called
+        with the same point. Setting this parameter to false is useful for
+        asking “what if?”
+ */
 - (MGLAnnotationID)annotationIDAtPoint:(NSPoint)point persistingResults:(BOOL)persist {
     // Look for any annotation near the click. An annotation is “near” if the
     // distance between its center and the click is less than the maximum height
@@ -1380,9 +1411,13 @@ public:
     std::vector<MGLAnnotationID> nearbyAnnotations = [self annotationIDsInRect:queryRect];
     
     if (nearbyAnnotations.size()) {
+        // Assume that the user is fat-fingering an annotation.
         NSRect hitRect = NSInsetRect({ point, NSZeroSize },
                                      -MGLAnnotationImagePaddingForHitTest,
                                      -MGLAnnotationImagePaddingForHitTest);
+        
+        // Filter out any annotation whose image is unselectable or for which
+        // hit testing fails.
         mbgl::util::erase_if(nearbyAnnotations, [&](const MGLAnnotationID annotationID) {
             NSAssert(_annotationContextsByAnnotationID.count(annotationID) != 0, @"Unknown annotation found nearby click");
             id <MGLAnnotation> annotation = [self annotationWithID:annotationID];
@@ -1395,6 +1430,8 @@ public:
                 return true;
             }
             
+            // Filter out the annotation if the fattened finger didn’t land on a
+            // translucent or opaque pixel in the image.
             NSRect annotationRect = [self frameOfImage:annotationImage.image
                                   centeredAtCoordinate:annotation.coordinate];
             return !!![annotationImage.image hitTestRect:hitRect withImageDestinationRect:annotationRect
@@ -1404,13 +1441,21 @@ public:
     
     MGLAnnotationID hitAnnotationID = MGLAnnotationNotFound;
     if (nearbyAnnotations.size()) {
+        // The annotation IDs need to be stable in order to compare them with
+        // the remembered IDs.
         std::sort(nearbyAnnotations.begin(), nearbyAnnotations.end());
         
         if (nearbyAnnotations == _annotationsNearbyLastClick) {
-            if (_lastSelectedAnnotationID == _annotationsNearbyLastClick.back()
-                || _lastSelectedAnnotationID == MGLAnnotationNotFound) {
+            // The last time we persisted a set of annotations, we had the same
+            // set of annotations as we do now. Cycle through them.
+            if (_lastSelectedAnnotationID == MGLAnnotationNotFound
+                || _lastSelectedAnnotationID == _annotationsNearbyLastClick.back()) {
+                // Either an annotation from this set hasn’t been selected
+                // before or the last annotation in the set was selected. Wrap
+                // around to the first annotation in the set.
                 hitAnnotationID = _annotationsNearbyLastClick.front();
             } else {
+                // Step to the next annotation in the set.
                 auto result = std::find(_annotationsNearbyLastClick.begin(),
                                         _annotationsNearbyLastClick.end(),
                                         _lastSelectedAnnotationID);
@@ -1418,9 +1463,13 @@ public:
                 hitAnnotationID = _annotationsNearbyLastClick[distance + 1];
             }
         } else {
+            // Remember the nearby annotations for the next time this method is
+            // called.
             if (persist) {
                 _annotationsNearbyLastClick = nearbyAnnotations;
             }
+            
+            // Choose the first nearby annotation.
             if (_annotationsNearbyLastClick.size()) {
                 hitAnnotationID = _annotationsNearbyLastClick.front();
             }
@@ -1430,6 +1479,7 @@ public:
     return hitAnnotationID;
 }
 
+/// Returns the IDs of the annotations coincident with the given rectangle.
 - (std::vector<MGLAnnotationID>)annotationIDsInRect:(NSRect)rect {
     mbgl::LatLngBounds queryBounds = [self convertRectToLatLngBounds:rect];
     return _mbglMap->getPointAnnotationsInBounds(queryBounds);
@@ -1455,6 +1505,7 @@ public:
         return;
     }
     
+    // Select the annotation if it’s visible.
     if (MGLCoordinateInCoordinateBounds(firstAnnotation.coordinate, self.visibleCoordinateBounds)) {
         [self selectAnnotation:firstAnnotation animated:NO];
     }
@@ -1462,6 +1513,7 @@ public:
 
 - (void)selectAnnotation:(id <MGLAnnotation>)annotation animated:(BOOL)animated
 {
+    // Only point annotations can be selected.
     if (!annotation || [annotation isKindOfClass:[MGLMultiPoint class]]) {
         return;
     }
@@ -1471,13 +1523,16 @@ public:
         return;
     }
     
+    // Deselect the annotation before reselecting it.
     [self deselectAnnotation:selectedAnnotation animated:NO];
     
+    // Add the annotation to the map if it hasn’t been added yet.
     MGLAnnotationID annotationID = [self annotationIDForAnnotation:annotation];
     if (annotationID == MGLAnnotationNotFound) {
         [self addAnnotation:annotation];
     }
     
+    // The annotation can’t be selected if no part of it is hittable.
     NSRect positioningRect = [self positioningRectForCalloutForAnnotationWithID:annotationID];
     if (NSIsEmptyRect(NSIntersectionRect(positioningRect, self.bounds))) {
         return;
@@ -1488,6 +1543,9 @@ public:
     _lastSelectedAnnotationID = _selectedAnnotationID;
     [self didChangeValueForKey:@"selectedAnnotation"];
     
+    // For the callout to be shown, the annotation must have a title, its
+    // callout must not already be shown, and the annotation must be able to
+    // show a callout according to the delegate.
     if ([annotation respondsToSelector:@selector(title)]
         && annotation.title
         && !self.calloutForSelectedAnnotation.shown
@@ -1496,6 +1554,8 @@ public:
         NSPopover *callout = [self calloutForAnnotation:annotation];
         callout.animates = animated;
         
+        // Hang the callout off the right edge of the annotation image’s
+        // alignment rect, or off the left edge in a right-to-left UI.
         callout.delegate = self;
         self.calloutForSelectedAnnotation = callout;
         NSRectEdge edge = (self.userInterfaceLayoutDirection == NSUserInterfaceLayoutDirectionRightToLeft
@@ -1505,6 +1565,7 @@ public:
     }
 }
 
+/// Returns a popover detailing the annotation.
 - (NSPopover *)calloutForAnnotation:(id <MGLAnnotation>)annotation {
     NSPopover *callout = [[NSPopover alloc] init];
     callout.behavior = NSPopoverBehaviorTransient;
@@ -1518,12 +1579,17 @@ public:
                                                             bundle:[NSBundle mgl_frameworkBundle]];
     }
     NSAssert(viewController, @"Unable to load MGLAnnotationCallout view controller");
+    // The popover’s view controller can bind to KVO-compliant key paths of the
+    // annotation.
     viewController.representedObject = annotation;
     callout.contentViewController = viewController;
     
     return callout;
 }
 
+/// Returns the rectangle that represents the annotation image of the annotation
+/// with the given ID. This rectangle is fitted to the image’s alignment rect
+/// and is appropriate for positioning a popover.
 - (NSRect)positioningRectForCalloutForAnnotationWithID:(MGLAnnotationID)annotationID {
     id <MGLAnnotation> annotation = [self annotationWithID:annotationID];
     if (!annotation) {
@@ -1540,11 +1606,14 @@ public:
                        -MGLAnnotationImagePaddingForCallout);
 }
 
+/// Returns the rectangle relative to the viewport that represents the given
+/// image centered at the given coordinate.
 - (NSRect)frameOfImage:(NSImage *)image centeredAtCoordinate:(CLLocationCoordinate2D)coordinate {
     NSPoint calloutAnchorPoint = [self convertCoordinate:coordinate toPointToView:self];
     return NSInsetRect({ calloutAnchorPoint, NSZeroSize }, -image.size.width / 2, -image.size.height / 2);
 }
 
+/// Returns the annotation image assigned to the annotation with the given ID.
 - (MGLAnnotationImage *)imageOfAnnotationWithID:(MGLAnnotationID)annotationID {
     if (annotationID == MGLAnnotationNotFound
         || _annotationContextsByAnnotationID.count(annotationID) == 0) {
@@ -1562,6 +1631,7 @@ public:
         return;
     }
     
+    // Close the callout popover gracefully.
     NSPopover *callout = self.calloutForSelectedAnnotation;
     callout.animates = animated;
     [callout performClose:self];
@@ -1569,6 +1639,8 @@ public:
     self.selectedAnnotation = nil;
 }
 
+/// Move the annotation callout to point to the selected annotation at its
+/// current position.
 - (void)updateAnnotationCallouts {
     NSPopover *callout = self.calloutForSelectedAnnotation;
     if (callout) {
@@ -1616,6 +1688,8 @@ public:
 }
 
 - (void)popoverDidClose:(__unused NSNotification *)notification {
+    // Deselect the closed popover, in case the popover was closed due to user
+    // action.
     id <MGLAnnotation> annotation = self.calloutForSelectedAnnotation.contentViewController.representedObject;
     self.calloutForSelectedAnnotation = nil;
     self.selectedAnnotation = nil;
@@ -1660,6 +1734,8 @@ public:
             MGLAnnotationImage *annotationImage = [self imageOfAnnotationWithID:annotationID];
             id <MGLAnnotation> annotation = [self annotationWithID:annotationID];
             if (annotation.toolTip.length) {
+                // Add a tooltip tracking area over the annotation image’s
+                // frame, accounting for the image’s alignment rect.
                 NSImage *image = annotationImage.image;
                 NSRect annotationRect = [self frameOfImage:image
                                       centeredAtCoordinate:annotation.coordinate];
@@ -1668,12 +1744,15 @@ public:
                     [self addToolTipRect:annotationRect owner:self userData:(void *)(NSUInteger)annotationID];
                 }
             }
+            // Opt into potentially expensive cursor tracking areas.
             if (annotationImage.cursor) {
                 _wantsCursorRects = YES;
             }
         }
     }
     
+    // Blow away any cursor tracking areas and rebuild them. That’s the
+    // potentially expensive part.
     if (_wantsCursorRects) {
         [self.window invalidateCursorRectsForView:self];
     }
@@ -1689,11 +1768,15 @@ public:
 }
 
 - (void)resetCursorRects {
+    // Drag to pan has a grabbing hand cursor.
     if (_panGestureRecognizer.state == NSGestureRecognizerStateBegan
         || _panGestureRecognizer.state == NSGestureRecognizerStateChanged) {
         [self addCursorRect:self.bounds cursor:[NSCursor closedHandCursor]];
         return;
     }
+    
+    // The rest of this method can be expensive, so bail if no annotations have
+    // ever had custom cursors.
     if (!_wantsCursorRects) {
         return;
     }
@@ -1703,6 +1786,8 @@ public:
         id <MGLAnnotation> annotation = [self annotationWithID:annotationID];
         MGLAnnotationImage *annotationImage = [self imageOfAnnotationWithID:annotationID];
         if (annotationImage.cursor) {
+            // Add a cursor tracking area over the annotation image, respecting
+            // the image’s alignment rect.
             NSImage *image = annotationImage.image;
             NSRect annotationRect = [self frameOfImage:image
                                   centeredAtCoordinate:annotation.coordinate];
@@ -1740,6 +1825,7 @@ public:
     return MGLLocationCoordinate2DFromLatLng([self convertPoint:point toLatLngFromView:view]);
 }
 
+/// Converts a point in the view’s coordinate system to a coordinate pair.
 - (mbgl::LatLng)convertPoint:(NSPoint)point toLatLngFromView:(nullable NSView *)view {
     NSPoint convertedPoint = [self convertPoint:point fromView:view];
     return _mbglMap->latLngForPixel(mbgl::PrecisionPoint(convertedPoint.x, convertedPoint.y));
@@ -1749,15 +1835,20 @@ public:
     return [self convertLatLng:MGLLatLngFromLocationCoordinate2D(coordinate) toPointToView:view];
 }
 
+/// Converts a coordinate pair to a point in the view’s coordinate system.
 - (NSPoint)convertLatLng:(mbgl::LatLng)latLng toPointToView:(nullable NSView *)view {
     mbgl::vec2<double> pixel = _mbglMap->pixelForLatLng(latLng);
     return [self convertPoint:NSMakePoint(pixel.x, pixel.y) toView:view];
 }
 
+/// Converts a rectangle in the view’s coordinate system to a coordinate
+/// bounding box.
 - (MGLCoordinateBounds)convertRectToCoordinateBounds:(NSRect)rect {
     return MGLCoordinateBoundsFromLatLngBounds([self convertRectToLatLngBounds:rect]);
 }
 
+/// Converts a rectangle in the view’s coordinate system to a coordinate
+/// bounding box.
 - (mbgl::LatLngBounds)convertRectToLatLngBounds:(NSRect)rect {
     mbgl::LatLngBounds bounds = mbgl::LatLngBounds::getExtendable();
     bounds.extend([self convertPoint:rect.origin toLatLngFromView:self]);
@@ -1789,7 +1880,7 @@ public:
     return bounds;
 }
 
-- (CLLocationDistance)metersPerPixelAtLatitude:(CLLocationDegrees)latitude {
+- (CLLocationDistance)metersPerPointAtLatitude:(CLLocationDegrees)latitude {
     return _mbglMap->getMetersPerPixelAtLatitude(latitude, self.zoomLevel);
 }
 
@@ -1830,6 +1921,7 @@ public:
     _mbglMap->setDebug(options);
 }
 
+/// Adapter responsible for bridging calls from mbgl to MGLMapView and Cocoa.
 class MGLMapViewImpl : public mbgl::View {
 public:
     MGLMapViewImpl(MGLMapView *nativeView_, const float scaleFactor_)
@@ -1862,8 +1954,10 @@ public:
     void activate() override {
         MGLOpenGLLayer *layer = (MGLOpenGLLayer *)nativeView.layer;
         if ([NSOpenGLContext currentContext] != layer.openGLContext) {
+            // Enable our OpenGL context on the Map thread.
             [layer.openGLContext makeCurrentContext];
             
+            // Enable vertex buffer objects.
             mbgl::gl::InitializeExtensions([](const char *name) {
                 static CFBundleRef framework = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.opengl"));
                 if (!framework) {
@@ -1890,13 +1984,19 @@ public:
     }
     
     void beforeRender() override {
+        // This normally gets called right away by mbgl::Map, but only on the
+        // main thread. OpenGL contexts and extensions are thread-local, so this
+        // has to happen on the Map thread too.
         activate();
     }
     
     void afterRender() override {}
     
 private:
+    /// Cocoa map view that this adapter bridges to.
     __weak MGLMapView *nativeView = nullptr;
+    
+    /// Backing scale factor of the view.
     const float scaleFactor;
 };
 
