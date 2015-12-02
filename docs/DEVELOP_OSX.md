@@ -15,3 +15,5 @@ The demo applications use Mapbox vector tiles, which require a Mapbox account an
 ### Usage
 
 Through the OS X SDK, the demo application supports a variety of standard gestures and keyboard shortcuts. For more details, open Mapbox GL Help from the Help menu.
+
+You can also [integrate the Mapbox OS X SDK into your own Cocoa application](BUILD_OSX.md).
