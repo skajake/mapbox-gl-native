@@ -249,7 +249,26 @@ static NSString * const MGLDroppedPinAnnotationImageIdentifier = @"dropped";
         }
     }
     
-    [self.mapView addAnnotations:annotations];
+    [NSTimer scheduledTimerWithTimeInterval:1/60
+                                     target:self
+                                   selector:@selector(dropOneOfManyPins:)
+                                   userInfo:annotations
+                                    repeats:YES];
+}
+
+- (void)dropOneOfManyPins:(NSTimer *)timer {
+    NSMutableArray *annotations = timer.userInfo;
+    NSUInteger numberOfAnnotationsToAdd = 50;
+    if (annotations.count < numberOfAnnotationsToAdd) {
+        numberOfAnnotationsToAdd = annotations.count;
+    }
+    NSArray *annotationsToAdd = [annotations subarrayWithRange:
+                                 NSMakeRange(0, numberOfAnnotationsToAdd)];
+    [self.mapView addAnnotations:annotationsToAdd];
+    [annotations removeObjectsInRange:NSMakeRange(0, numberOfAnnotationsToAdd)];
+    if (!annotations.count) {
+        [timer invalidate];
+    }
 }
 
 #pragma mark Help methods
