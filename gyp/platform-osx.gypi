@@ -86,6 +86,7 @@
         '../include/mbgl/osx',
         '../include/mbgl/darwin',
         '../include',
+        '../src',
       ],
 
       'xcode_settings': {

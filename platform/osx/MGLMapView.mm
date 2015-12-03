@@ -1331,7 +1331,7 @@ public:
                                                             (float)(rep.pixelsWide / size.width),
                                                             std::move(pixelString));
     NSString *symbolName = [MGLAnnotationSpritePrefix stringByAppendingString:annotationImage.reuseIdentifier];
-    _mbglMap->setSprite(symbolName.UTF8String, cSpriteImage);
+    _mbglMap->addAnnotationIcon(symbolName.UTF8String, cSpriteImage);
     
     // Create a slop area with a “radius” equal to the annotation image’s entire
     // size, allowing the eventual click to be on any point within this image.
