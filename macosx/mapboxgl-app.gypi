@@ -32,7 +32,7 @@
         'OTHER_LDFLAGS': [ '-stdlib=libc++', '-lstdc++' ],
         'SDKROOT': 'macosx',
         'SKIP_INSTALL': 'YES',
-        'SUPPORTED_PLATFORMS':'macosx',
+        'SUPPORTED_PLATFORMS': 'macosx',
         'VERSIONING_SYSTEM': 'apple-generic',
       },
       
