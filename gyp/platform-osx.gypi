@@ -98,10 +98,6 @@
       },
 
       'direct_dependent_settings': {
-        'include_dirs': [
-          '../include/mbgl/osx',
-          '../include/mbgl/darwin',
-        ],
         'mac_bundle_resources': [
           '<!@(find ../platform/osx/resources -type f \! -name \'.*\')',
         ],
