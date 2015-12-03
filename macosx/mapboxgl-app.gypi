@@ -25,7 +25,7 @@
         'INFOPLIST_FILE': '../macosx/framework/Info.plist',
         'LD_RUNPATH_SEARCH_PATHS': [
           '$(inherited)',
-          '@executable_path/Frameworks',
+          '@executable_path/../Frameworks',
           '@loader_path/Frameworks',
         ],
         'PRODUCT_BUNDLE_IDENTIFIER': 'com.mapbox.MapboxGL',
@@ -42,7 +42,6 @@
       ],
       
       'sources': [
-        'framework/Mapbox.h',
         'framework/Mapbox.m',
       ],
       
@@ -98,12 +97,26 @@
       ],
 
       'xcode_settings': {
+        'CLANG_ENABLE_OBJC_ARC': 'YES',
+        'INFOPLIST_FILE': '../macosx/app/Info.plist',
+        'LD_RUNPATH_SEARCH_PATHS': [
+          '$(inherited)',
+          '@executable_path/../Frameworks',
+        ],
+        'PRODUCT_BUNDLE_IDENTIFIER': 'com.mapbox.MapboxGL',
         'SDKROOT': 'macosx',
         'SUPPORTED_PLATFORMS':'macosx',
-        'INFOPLIST_FILE': '../macosx/app/Info.plist',
-        'CLANG_ENABLE_OBJC_ARC': 'YES',
-        'PRODUCT_BUNDLE_IDENTIFIER': 'com.mapbox.MapboxGL',
       },
+      
+      'copies': [
+        {
+          'destination': '<(PRODUCT_DIR)/$(FRAMEWORKS_FOLDER_PATH)',
+          'files': [
+            '<(PRODUCT_DIR)/Mapbox.framework',
+          ],
+          'xcode_code_sign': 1,
+        }
+      ],
     },
   ]
 }
