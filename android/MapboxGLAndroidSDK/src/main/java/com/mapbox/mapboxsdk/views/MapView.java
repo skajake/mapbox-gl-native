@@ -56,6 +56,7 @@ import com.almeros.android.multitouch.gesturedetectors.RotateGestureDetector;
 import com.almeros.android.multitouch.gesturedetectors.TwoFingerGestureDetector;
 import com.mapbox.mapboxsdk.R;
 import com.mapbox.mapboxsdk.annotations.Annotation;
+import com.mapbox.mapboxsdk.annotations.InfoWindow;
 import com.mapbox.mapboxsdk.annotations.Marker;
 import com.mapbox.mapboxsdk.annotations.MarkerOptions;
 import com.mapbox.mapboxsdk.annotations.Polygon;
@@ -84,7 +85,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * A {@code MapView} provides an embeddable map interface, similar to the one provided by the Google Maps API.
+ * A {@code MapView} provides an embeddable map interface.
  * You use this class to display map information and to manipulate the map contents from your application.
  * You can center the map on a given coordinate, specify the size of the area you want to display,
  * and style the features of the map to fit your application's use case.
@@ -202,7 +203,8 @@ public final class MapView extends FrameLayout {
     // Every annotation that has been added to the map
     private final List<Annotation> mAnnotations = new ArrayList<>();
     private List<Marker> mMarkersNearLastTap = new ArrayList<>();
-    private Marker mSelectedMarker;
+    private List<Marker> mSelectedMarkers = new ArrayList<>();
+    private List<InfoWindow> mInfoWindows = new ArrayList<>();
     private InfoWindowAdapter mInfoWindowAdapter;
     private SpriteFactory mSpriteFactory;
     private ArrayList<Sprite> mSprites = new ArrayList<>();
@@ -239,6 +241,7 @@ public final class MapView extends FrameLayout {
     private boolean mZoomEnabled = true;
     private boolean mScrollEnabled = true;
     private boolean mRotateEnabled = true;
+    private boolean mAllowConcurrentMultipleOpenInfoWindows = false;
     private String mStyleUrl;
 
     //
@@ -274,87 +277,115 @@ public final class MapView extends FrameLayout {
     }
 
     /**
-     * This event is triggered whenever the currently displayed map region is about to changing
+     * This {@link MapChange} is triggered whenever the currently displayed map region is about to changing
      * without an animation.
      * <p/>
      * This event is followed by a series of {@link MapView#REGION_IS_CHANGING} and ends
      * with {@link MapView#REGION_DID_CHANGE}.
+     * <p/>
+     * More information in {@see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener}
      */
     public static final int REGION_WILL_CHANGE = 0;
 
     /**
-     * This event is triggered whenever the currently displayed map region is about to changing
+     * This {@link MapChange} is triggered whenever the currently displayed map region is about to changing
      * with an animation.
      * <p/>
      * This event is followed by a series of {@link MapView#REGION_IS_CHANGING} and ends
      * with {@link MapView#REGION_DID_CHANGE_ANIMATED}.
+     * <p/>
+     * More information in {@see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener}
      */
     public static final int REGION_WILL_CHANGE_ANIMATED = 1;
 
     /**
-     * This event is triggered whenever the currently displayed map region is changing.
+     * This {@link MapChange} is triggered whenever the currently displayed map region is changing.
+     * <p/>
+     * More information in {@see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener}
      */
     public static final int REGION_IS_CHANGING = 2;
 
     /**
-     * This event is triggered whenever the currently displayed map region finished changing
+     * This {@link MapChange} is triggered whenever the currently displayed map region finished changing
      * without an animation.
+     * <p/>
+     * More information in {@see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener}
      */
     public static final int REGION_DID_CHANGE = 3;
 
     /**
-     * This event is triggered whenever the currently displayed map region finished changing
+     * This {@link MapChange} is triggered whenever the currently displayed map region finished changing
      * with an animation.
+     * <p/>
+     * More information in {@see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener}
      */
     public static final int REGION_DID_CHANGE_ANIMATED = 4;
 
     /**
-     * This event is triggered when the map is about to start loading a new map style.
+     * This {@link MapChange} is triggered when the map is about to start loading a new map style.
      * <p/>
      * This event is followed by {@link MapView#DID_FINISH_LOADING_MAP} or
      * {@link MapView#DID_FAIL_LOADING_MAP}.
+     * <p/>
+     * More information in {@see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener}
      */
     public static final int WILL_START_LOADING_MAP = 5;
 
     /**
-     * This event is triggered when the map has successfully loaded a new map style.
+     * This {@link MapChange} is triggered when the map has successfully loaded a new map style.
+     * <p/>
+     * More information in {@see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener}
      */
     public static final int DID_FINISH_LOADING_MAP = 6;
 
     /**
-     * Currently not implemented.
+     * This {@link MapChange} is currently not implemented.
      * <p/>
      * This event is triggered when the map has failed to load a new map style.
+     * <p/>
+     * More information in {@see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener}
      */
     public static final int DID_FAIL_LOADING_MAP = 7;
 
     /**
-     * Currently not implemented.
+     * This {@link MapChange} is currently not implemented.
+     * <p/>
+     * More information in {@see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener}
      */
     public static final int WILL_START_RENDERING_FRAME = 8;
 
     /**
-     * Currently not implemented.
+     * This {@link MapChange} is currently not implemented.
+     * <p/>
+     * More information in {@see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener}
      */
     public static final int DID_FINISH_RENDERING_FRAME = 9;
 
     /**
-     * Currently not implemented.
+     * This {@link MapChange} is currently not implemented.
+     * <p/>
+     * More information in {@see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener}
      */
     public static final int DID_FINISH_RENDERING_FRAME_FULLY_RENDERED = 10;
 
     /**
-     * Currently not implemented.
+     * This {@link MapChange} is currently not implemented.
+     * <p/>
+     * More information in {@see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener}
      */
     public static final int WILL_START_RENDERING_MAP = 11;
 
     /**
-     * Currently not implemented.
+     * This {@link MapChange} is currently not implemented.
+     * <p/>
+     * More information in {@see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener}
      */
     public static final int DID_FINISH_RENDERING_MAP = 12;
 
     /**
-     * Currently not implemented.
+     * This {@link MapChange} is currently not implemented.
+     * <p/>
+     * More information in {@see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener}
      */
     public static final int DID_FINISH_RENDERING_MAP_FULLY_RENDERED = 13;
 
@@ -468,7 +499,20 @@ public final class MapView extends FrameLayout {
         /**
          * Called when the displayed map view changes.
          *
-         * @param change The type of map change event.
+         * @param change Type of map change event, one of {@link #REGION_WILL_CHANGE},
+         *               {@link #REGION_WILL_CHANGE_ANIMATED},
+         *               {@link #REGION_IS_CHANGING},
+         *               {@link #REGION_DID_CHANGE},
+         *               {@link #REGION_DID_CHANGE_ANIMATED},
+         *               {@link #WILL_START_LOADING_MAP},
+         *               {@link #DID_FAIL_LOADING_MAP},
+         *               {@link #DID_FINISH_LOADING_MAP},
+         *               {@link #WILL_START_RENDERING_FRAME},
+         *               {@link #DID_FINISH_RENDERING_FRAME},
+         *               {@link #DID_FINISH_RENDERING_FRAME_FULLY_RENDERED},
+         *               {@link #WILL_START_RENDERING_MAP},
+         *               {@link #DID_FINISH_RENDERING_MAP},
+         *               {@link #DID_FINISH_RENDERING_MAP_FULLY_RENDERED}.
          */
         void onMapChanged(@MapChange int change);
     }
@@ -808,10 +852,6 @@ public final class MapView extends FrameLayout {
         addOnMapChangedListener(new OnMapChangedListener() {
             @Override
             public void onMapChanged(@MapChange int change) {
-                if ((change == REGION_WILL_CHANGE) || (change == REGION_WILL_CHANGE_ANIMATED)) {
-                    deselectMarker();
-                }
-
                 if (change == DID_FINISH_LOADING_MAP) {
                     reloadSprites();
                     reloadMarkers();
@@ -1296,6 +1336,30 @@ public final class MapView extends FrameLayout {
     }
 
     //
+    // InfoWindows
+    //
+
+    /**
+     * Changes whether the map allows concurrent multiple infowindows to be shown.
+     *
+     * @param allow If true, map allows concurrent multiple infowindows to be shown.
+     */
+    @UiThread
+    public void setAllowConcurrentMultipleOpenInfoWindows(boolean allow) {
+        this.mAllowConcurrentMultipleOpenInfoWindows = allow;
+    }
+
+    /**
+     * Returns whether the map allows concurrent multiple infowindows to be shown.
+     *
+     * @return If true, map allows concurrent multiple infowindows to be shown.
+     */
+    @UiThread
+    public boolean isAllowConcurrentMultipleOpenInfoWindows() {
+        return this.mAllowConcurrentMultipleOpenInfoWindows;
+    }
+
+    //
     // Debug
     //
 
@@ -1659,7 +1723,7 @@ public final class MapView extends FrameLayout {
         }
         float scale = density / DisplayMetrics.DENSITY_DEFAULT;
 
-        mNativeMapView.setSprite(
+        mNativeMapView.addAnnotationIcon(
                 id,
                 (int) (bitmap.getWidth() / scale),
                 (int) (bitmap.getHeight() / scale),
@@ -1871,8 +1935,9 @@ public final class MapView extends FrameLayout {
 
     /**
      * Convenience method for removing a Marker from the map.
-     *
+     * <p/>
      * Calls removeAnnotation() internally
+     *
      * @param marker Marker to remove
      */
     @UiThread
@@ -2005,7 +2070,8 @@ public final class MapView extends FrameLayout {
 
     /**
      * Selects a marker. The selected marker will have it's info window opened.
-     * Any other open info windows will be closed.
+     * Any other open info windows will be closed unless isAllowConcurrentMultipleOpenInfoWindows()
+     * is true.
      * <p/>
      * Selecting an already selected marker will have no effect.
      *
@@ -2018,12 +2084,14 @@ public final class MapView extends FrameLayout {
             return;
         }
 
-        if (marker == mSelectedMarker) {
+        if (mSelectedMarkers.contains(marker)) {
             return;
         }
 
         // Need to deselect any currently selected annotation first
-        deselectMarker();
+        if (!isAllowConcurrentMultipleOpenInfoWindows()) {
+            deselectMarkers();
+        }
 
         boolean handledDefaultClick = false;
         if (mOnMarkerClickListener != null) {
@@ -2032,26 +2100,46 @@ public final class MapView extends FrameLayout {
         }
 
         if (!handledDefaultClick) {
-            // default behaviour
-            // Can't do this as InfoWindow will get hidden
-            //setCenterCoordinate(marker.getPosition(), true);
-            marker.showInfoWindow();
+            // default behaviour show InfoWindow
+            mInfoWindows.add(marker.showInfoWindow());
         }
 
-        mSelectedMarker = marker;
+        mSelectedMarkers.add(marker);
     }
 
     /**
-     * Deselects any currently selected marker. The selected marker will have it's info window closed.
+     * Deselects any currently selected marker. All markers will have it's info window closed.
      */
     @UiThread
-    public void deselectMarker() {
-        if (mSelectedMarker != null) {
-            if (mSelectedMarker.isInfoWindowShown()) {
-                mSelectedMarker.hideInfoWindow();
-                mSelectedMarker = null;
+    public void deselectMarkers() {
+        if (mSelectedMarkers.isEmpty()) {
+            return;
+        }
+
+        for (Marker marker : mSelectedMarkers) {
+            if (marker.isInfoWindowShown()) {
+                marker.hideInfoWindow();
             }
         }
+
+        // Removes all selected markers from the list
+        mSelectedMarkers.clear();
+    }
+
+    /**
+     * Deselects a currently selected marker. The selected marker will have it's info window closed.
+     */
+    @UiThread
+    public void deselectMarker(@NonNull Marker marker) {
+        if (!mSelectedMarkers.contains(marker)) {
+            return;
+        }
+
+        if (marker.isInfoWindowShown()) {
+            marker.hideInfoWindow();
+        }
+
+        mSelectedMarkers.remove(marker);
     }
 
     //
@@ -2129,8 +2217,8 @@ public final class MapView extends FrameLayout {
      */
     @UiThread
     @Nullable
-    public Marker getSelectedMarker() {
-        return mSelectedMarker;
+    public List<Marker> getSelectedMarkers() {
+        return mSelectedMarkers;
     }
 
     private void adjustTopOffsetPixels() {
@@ -2144,12 +2232,12 @@ public final class MapView extends FrameLayout {
             }
         }
 
-        if (mSelectedMarker != null) {
-            if (mSelectedMarker.isInfoWindowShown()) {
-                Marker temp = mSelectedMarker;
+        for (Marker marker : mSelectedMarkers) {
+            if (marker.isInfoWindowShown()) {
+                Marker temp = marker;
                 temp.hideInfoWindow();
                 temp.showInfoWindow();
-                mSelectedMarker = temp;
+                marker = temp;
             }
         }
     }
@@ -2230,6 +2318,9 @@ public final class MapView extends FrameLayout {
         public void onSurfaceTextureUpdated(SurfaceTexture surface) {
             mCompassView.update(getDirection());
             mUserLocationView.update();
+            for (InfoWindow infoWindow : mInfoWindows) {
+                infoWindow.update();
+            }
         }
     }
 
@@ -2376,13 +2467,12 @@ public final class MapView extends FrameLayout {
 
             switch (e.getAction()) {
                 case MotionEvent.ACTION_DOWN:
-                    mQuickZoom = false;
                     break;
                 case MotionEvent.ACTION_MOVE:
-                    mQuickZoom = true;
                     break;
                 case MotionEvent.ACTION_UP:
                     if (mQuickZoom) {
+                        mQuickZoom = false;
                         break;
                     }
 
@@ -2440,19 +2530,24 @@ public final class MapView extends FrameLayout {
                 Collections.sort(nearbyMarkers);
 
                 if (nearbyMarkers == mMarkersNearLastTap) {
+
+                    // TODO: We still need to adapt this logic to the new mSelectedMarkers list,
+                    // though the basic functionality is there.
+
                     // the selection candidates haven't changed; cycle through them
-                    if (mSelectedMarker != null && (mSelectedMarker.getId() == mMarkersNearLastTap.get(mMarkersNearLastTap.size() - 1).getId())) {
-                        // the selected marker is the last in the set; cycle back to the first
-                        // note: this could be the selected marker if only one in set
-                        newSelectedMarkerId = mMarkersNearLastTap.get(0).getId();
-                    } else if (mSelectedMarker != null) {
-                        // otherwise increment the selection through the candidates
-                        long result = mMarkersNearLastTap.indexOf(mSelectedMarker);
-                        newSelectedMarkerId = mMarkersNearLastTap.get((int) result + 1).getId();
-                    } else {
+//                    if (mSelectedMarker != null
+//                            && (mSelectedMarker.getId() == mMarkersNearLastTap.get(mMarkersNearLastTap.size() - 1).getId())) {
+//                        // the selected marker is the last in the set; cycle back to the first
+//                        // note: this could be the selected marker if only one in set
+//                        newSelectedMarkerId = mMarkersNearLastTap.get(0).getId();
+//                    } else if (mSelectedMarker != null) {
+//                        // otherwise increment the selection through the candidates
+//                        long result = mMarkersNearLastTap.indexOf(mSelectedMarker);
+//                        newSelectedMarkerId = mMarkersNearLastTap.get((int) result + 1).getId();
+//                    } else {
                         // no current selection; select the first one
                         newSelectedMarkerId = mMarkersNearLastTap.get(0).getId();
-                    }
+//                    }
                 } else {
                     // start tracking a new set of nearby markers
                     mMarkersNearLastTap = nearbyMarkers;
@@ -2473,7 +2568,7 @@ public final class MapView extends FrameLayout {
                     Annotation annotation = mAnnotations.get(i);
                     if (annotation instanceof Marker) {
                         if (annotation.getId() == newSelectedMarkerId) {
-                            if (mSelectedMarker == null || annotation.getId() != mSelectedMarker.getId()) {
+                            if (mSelectedMarkers.isEmpty() || !mSelectedMarkers.contains(annotation)) {
                                 selectMarker((Marker) annotation);
                             }
                             break;
@@ -2483,7 +2578,7 @@ public final class MapView extends FrameLayout {
 
             } else {
                 // deselect any selected marker
-                deselectMarker();
+                deselectMarkers();
 
                 // notify app of map click
                 if (mOnMapClickListener != null) {
@@ -2498,7 +2593,7 @@ public final class MapView extends FrameLayout {
         // Called for a long press
         @Override
         public void onLongPress(MotionEvent e) {
-            if (mOnMapLongClickListener != null) {
+            if (mOnMapLongClickListener != null && !mQuickZoom) {
                 LatLng point = fromScreenLocation(new PointF(e.getX(), e.getY()));
                 mOnMapLongClickListener.onMapLongClick(point);
             }
@@ -2555,7 +2650,7 @@ public final class MapView extends FrameLayout {
         }
     }
 
-    // This class handles two finger gestures
+    // This class handles two finger gestures and double-tap drag gestures
     private class ScaleGestureListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
 
         long mBeginTime = 0;
@@ -2580,8 +2675,8 @@ public final class MapView extends FrameLayout {
             mZoomStarted = false;
         }
 
-        // Called each time one of the two fingers moves
-        // Called for pinch zooms
+        // Called each time a finger moves
+        // Called for pinch zooms and quickzooms/quickscales
         @Override
         public boolean onScale(ScaleGestureDetector detector) {
             if (!mZoomEnabled) {
@@ -2608,6 +2703,9 @@ public final class MapView extends FrameLayout {
 
             // Cancel any animation
             mNativeMapView.cancelTransitions();
+
+            // Gesture is a quickzoom if there aren't two fingers
+            mQuickZoom = !mTwoTap;
 
             // Scale the map
             if (!mQuickZoom && mUserLocationView.getMyLocationTrackingMode() == MyLocationTracking.TRACKING_NONE) {
@@ -3252,6 +3350,12 @@ public final class MapView extends FrameLayout {
     @UiThread
     public void setMyLocationTrackingMode(@MyLocationTracking.Mode int myLocationTrackingMode) {
         mUserLocationView.setMyLocationTrackingMode(myLocationTrackingMode);
+        validateGesturesForTrackingModes();
+    }
+
+    private void validateGesturesForTrackingModes() {
+        int myLocationTrackingMode = mUserLocationView.getMyLocationTrackingMode();
+        int myBearingTrackingMode = mUserLocationView.getMyBearingTrackingMode();
 
         // Enable/disable gestures based on tracking mode
         if (myLocationTrackingMode == MyLocationTracking.TRACKING_NONE) {
@@ -3259,9 +3363,10 @@ public final class MapView extends FrameLayout {
             mRotateEnabled = true;
         } else {
             mScrollEnabled = false;
-            mRotateEnabled = (myLocationTrackingMode == MyLocationTracking.TRACKING_FOLLOW);
+            mRotateEnabled = (myBearingTrackingMode == MyBearingTracking.NONE);
         }
     }
+
 
     /**
      * Returns the current user location tracking mode.
@@ -3278,7 +3383,12 @@ public final class MapView extends FrameLayout {
 
     /**
      * Set the current my bearing tracking mode.
-     * Tracking my bearing disables gestures and shows the direction the user is heading.
+     * <p/>
+     * Tracking the users bearing will disable gestures and shows the direction the user is heading.
+     * <p/>
+     * When location tracking is disabled the direction of {@link UserLocationView}  is rotated
+     * When location tracking is enabled the {@link MapView} is rotated based on bearing value.
+     * <p/>
      * See {@link MyBearingTracking} for different values.
      *
      * @param myBearingTrackingMode The bearing tracking mode to be used.
@@ -3287,6 +3397,7 @@ public final class MapView extends FrameLayout {
     @UiThread
     public void setMyBearingTrackingMode(@MyBearingTracking.Mode int myBearingTrackingMode) {
         mUserLocationView.setMyBearingTrackingMode(myBearingTrackingMode);
+        validateGesturesForTrackingModes();
     }
 
     /**

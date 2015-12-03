@@ -2269,7 +2269,7 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
 
     // sprite upload
     NSString *symbolName = [MGLAnnotationSpritePrefix stringByAppendingString:annotationImage.reuseIdentifier];
-    _mbglMap->setSprite(symbolName.UTF8String, cSpriteImage);
+    _mbglMap->addAnnotationIcon(symbolName.UTF8String, cSpriteImage);
 }
 
 - (void)removeAnnotation:(id <MGLAnnotation>)annotation

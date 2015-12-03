@@ -18,12 +18,36 @@
 
 namespace mbgl {
 
+class MapData;
 class GlyphAtlas;
 class GlyphStore;
 class SpriteStore;
 class SpriteAtlas;
 class LineAtlas;
 class StyleLayer;
+class TransformState;
+class TexturePool;
+
+class Tile;
+class Bucket;
+
+struct RenderItem {
+    inline RenderItem(const StyleLayer& layer_,
+                      const Tile* tile_ = nullptr,
+                      Bucket* bucket_ = nullptr)
+        : tile(tile_), bucket(bucket_), layer(layer_) {
+    }
+
+    const Tile* const tile;
+    Bucket* const bucket;
+    const StyleLayer& layer;
+};
+
+struct RenderData {
+    Color backgroundColor = {{ 0, 0, 0, 0 }};
+    std::set<Source*> sources;
+    std::vector<RenderItem> order;
+};
 
 class Style : public GlyphStore::Observer,
               public SpriteStore::Observer,
@@ -61,12 +85,18 @@ public:
     }
 
     Source* getSource(const std::string& id) const;
-    StyleLayer* getLayer(const std::string& id) const;
-
     void addSource(std::unique_ptr<Source>);
-    void addLayer(util::ptr<StyleLayer>);
-    void addLayer(util::ptr<StyleLayer>, const std::string& beforeLayerID);
+
+    std::vector<std::unique_ptr<StyleLayer>> getLayers() const;
+    StyleLayer* getLayer(const std::string& id) const;
+    void addLayer(std::unique_ptr<StyleLayer>);
+    void addLayer(std::unique_ptr<StyleLayer>, const std::string& beforeLayerID);
     void removeLayer(const std::string& layerID);
+
+    RenderData getRenderData() const;
+
+    void setSourceTileCacheSize(size_t);
+    void onLowMemory();
 
     void dumpDebugLogs() const;
 
@@ -77,11 +107,11 @@ public:
     std::unique_ptr<SpriteAtlas> spriteAtlas;
     std::unique_ptr<LineAtlas> lineAtlas;
 
-    std::vector<std::unique_ptr<Source>> sources;
-    std::vector<util::ptr<StyleLayer>> layers;
-
 private:
-    std::vector<util::ptr<StyleLayer>>::const_iterator findLayer(const std::string& layerID) const;
+    std::vector<std::unique_ptr<Source>> sources;
+    std::vector<std::unique_ptr<StyleLayer>> layers;
+
+    std::vector<std::unique_ptr<StyleLayer>>::const_iterator findLayer(const std::string& layerID) const;
 
     // GlyphStore::Observer implementation.
     void onGlyphRangeLoaded() override;
@@ -106,7 +136,6 @@ private:
 
     std::exception_ptr lastError;
 
-    std::unique_ptr<uv::rwlock> mtx;
     ZoomHistory zoomHistory;
     bool hasPendingTransitions = false;
 
