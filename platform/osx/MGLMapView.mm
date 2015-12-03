@@ -465,6 +465,22 @@ public:
     _delegateHasStrokeColorsForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:strokeColorForShapeAnnotation:)];
     _delegateHasFillColorsForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:fillColorForPolygonAnnotation:)];
     _delegateHasLineWidthsForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:lineWidthForPolylineAnnotation:)];
+    
+    if ([self.delegate respondsToSelector:@selector(mapView:regionWillChangeAnimated:)]) {
+        NSLog(@"-mapView:regionWillChangeAnimated: is not supported by the OS X SDK, but %@ implements it anyways. "
+              @"Please implement -[%@ mapView:cameraWillChangeAnimated:] instead.",
+              NSStringFromClass([delegate class]), NSStringFromClass([delegate class]));
+    }
+    if ([self.delegate respondsToSelector:@selector(mapViewRegionIsChanging:)]) {
+        NSLog(@"-mapViewRegionIsChanging: is not supported by the OS X SDK, but %@ implements it anyways. "
+              @"Please implement -[%@ mapViewCameraIsChanging:] instead.",
+              NSStringFromClass([delegate class]), NSStringFromClass([delegate class]));
+    }
+    if ([self.delegate respondsToSelector:@selector(mapView:regionDidChangeAnimated:)]) {
+        NSLog(@"-mapView:regionDidChangeAnimated: is not supported by the OS X SDK, but %@ implements it anyways. "
+              @"Please implement -[%@ mapView:cameraDidChangeAnimated:] instead.",
+              NSStringFromClass([delegate class]), NSStringFromClass([delegate class]));
+    }
 }
 
 #pragma mark Style
@@ -661,9 +677,9 @@ public:
         case mbgl::MapChangeRegionWillChange:
         case mbgl::MapChangeRegionWillChangeAnimated:
         {
-            if ([self.delegate respondsToSelector:@selector(mapView:regionWillChangeAnimated:)]) {
+            if ([self.delegate respondsToSelector:@selector(mapView:cameraWillChangeAnimated:)]) {
                 BOOL animated = change == mbgl::MapChangeRegionWillChangeAnimated;
-                [self.delegate mapView:self regionWillChangeAnimated:animated];
+                [self.delegate mapView:self cameraWillChangeAnimated:animated];
             }
             break;
         }
@@ -674,8 +690,8 @@ public:
             [self updateCompass];
             [self updateAnnotationCallouts];
             
-            if ([self.delegate respondsToSelector:@selector(mapViewRegionIsChanging:)]) {
-                [self.delegate mapViewRegionIsChanging:self];
+            if ([self.delegate respondsToSelector:@selector(mapViewCameraIsChanging:)]) {
+                [self.delegate mapViewCameraIsChanging:self];
             }
             break;
         }
@@ -692,9 +708,9 @@ public:
             [self updateAnnotationCallouts];
             [self updateAnnotationTrackingAreas];
             
-            if ([self.delegate respondsToSelector:@selector(mapView:regionDidChangeAnimated:)]) {
+            if ([self.delegate respondsToSelector:@selector(mapView:cameraDidChangeAnimated:)]) {
                 BOOL animated = change == mbgl::MapChangeRegionDidChangeAnimated;
-                [self.delegate mapView:self regionDidChangeAnimated:animated];
+                [self.delegate mapView:self cameraDidChangeAnimated:animated];
             }
             break;
         }

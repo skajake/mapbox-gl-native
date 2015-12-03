@@ -30,7 +30,7 @@ typedef NS_OPTIONS(NSUInteger, MGLMapDebugMaskOptions) {
 
 /** An interactive, customizable map view with an interface similar to the one
     provided by Apple’s MapKit.
- 
+    
     Using MGLMapView, you can embed the map inside a view, allow users to
     manipulate it with standard gestures, animate the map between different
     viewpoints, and present information in the form of annotations and overlays.
@@ -51,7 +51,9 @@ typedef NS_OPTIONS(NSUInteger, MGLMapDebugMaskOptions) {
     Mapbox-hosted vector tiles and styles require an API access token, which you
     can obtain from the
     [Mapbox account page](https://www.mapbox.com/studio/account/tokens/). Access
-    tokens help to deter other developers from hotlinking your styles.
+    tokens associate requests to Mapbox’s vector tile and style APIs with your
+    Mapbox account. They also deter other developers from using your styles
+    without your permission.
     
     @note You are responsible for getting permission to use the map data and for
         ensuring that your use adheres to the relevant terms of use. */
@@ -63,14 +65,14 @@ IB_DESIGNABLE
 
 /** Initializes and returns a newly allocated map view with the specified frame
     and the default style.
- 
+    
     @param frame The frame for the view, measured in points.
     @return An initialized map view. */
 - (instancetype)initWithFrame:(CGRect)frame;
 
 /** Initializes and returns a newly allocated map view with the specified frame
     and style URL.
- 
+    
     @param frame The frame for the view, measured in points.
     @param styleURL URL of the map style to display. The URL may be a full HTTP
         or HTTPS URL, a Mapbox URL indicating the style’s map ID
@@ -95,11 +97,11 @@ IB_DESIGNABLE
 
 
 /** URL of the style currently displayed in the receiver.
- 
+    
     The URL may be a full HTTP or HTTPS URL, a Mapbox URL indicating the style’s
     map ID (`mapbox://styles/<user>/<style>`), or a path to a local file
     relative to the application’s resource path.
- 
+    
     If you set this property to `nil`, the receiver will use the default style
     and this property will automatically be set to that style’s URL. */
 @property (nonatomic, null_resettable) NSURL *styleURL;
@@ -149,7 +151,7 @@ IB_DESIGNABLE
     
     Changing the value of this property centers the map on the new coordinate
     without changing the current zoom level.
- 
+    
     Changing the value of this property updates the map view immediately. If you
     want to animate the change, use the -setCenterCoordinate:animated: method
     instead. */
@@ -354,7 +356,7 @@ IB_DESIGNABLE
 /** @name Managing Annotation Selections */
 
 /** The currently selected annotations.
- 
+    
     Assigning a new array to this property selects only the first annotation in
     the array. */
 @property (nonatomic, copy) NS_ARRAY_OF(id <MGLAnnotation>) *selectedAnnotations;
@@ -397,7 +399,7 @@ IB_DESIGNABLE
 - (void)addOverlay:(id <MGLOverlay>)overlay;
 
 /** Adds an array of overlays to the map.
- 
+    
     To remove multiple overlays from a map, use the -removeOverlays: method.
     
     @param overlays An array of objects, each of which must conform to the
