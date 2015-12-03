@@ -74,9 +74,9 @@
       'product_extension': 'app',
       'mac_bundle': 1,
       'mac_bundle_resources': [
-        'Credits.rtf',
-        'Icon.icns',
-        'MainMenu.xib',
+        'app/Credits.rtf',
+        'app/Icon.icns',
+        'app/MainMenu.xib',
       ],
 
       'dependencies': [
@@ -84,23 +84,23 @@
       ],
 
       'sources': [
-        './AppDelegate.h',
-        './AppDelegate.m',
-        './DroppedPinAnnotation.h',
-        './DroppedPinAnnotation.m',
-        './LocationCoordinate2DTransformer.h',
-        './LocationCoordinate2DTransformer.m',
-        './TimeIntervalTransformer.h',
-        './TimeIntervalTransformer.m',
-        './NSValue+Additions.h',
-        './NSValue+Additions.m',
-        './main.m',
+        'app/AppDelegate.h',
+        'app/AppDelegate.m',
+        'app/DroppedPinAnnotation.h',
+        'app/DroppedPinAnnotation.m',
+        'app/LocationCoordinate2DTransformer.h',
+        'app/LocationCoordinate2DTransformer.m',
+        'app/TimeIntervalTransformer.h',
+        'app/TimeIntervalTransformer.m',
+        'app/NSValue+Additions.h',
+        'app/NSValue+Additions.m',
+        'app/main.m',
       ],
 
       'xcode_settings': {
         'SDKROOT': 'macosx',
         'SUPPORTED_PLATFORMS':'macosx',
-        'INFOPLIST_FILE': '../macosx/Info.plist',
+        'INFOPLIST_FILE': '../macosx/app/Info.plist',
         'CLANG_ENABLE_OBJC_ARC': 'YES',
         'PRODUCT_BUNDLE_IDENTIFIER': 'com.mapbox.MapboxGL',
       },

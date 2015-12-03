@@ -99,7 +99,6 @@
         'include_dirs': [
           '../include/mbgl/osx',
           '../include/mbgl/darwin',
-          '../include',
         ],
         'mac_bundle_resources': [
           '<!@(find ../platform/osx/resources -type f \! -name \'.*\')',
