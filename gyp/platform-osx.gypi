@@ -83,8 +83,6 @@
       },
 
       'include_dirs': [
-        '../include/mbgl/osx',
-        '../include/mbgl/darwin',
         '../include',
         '../src',
       ],
