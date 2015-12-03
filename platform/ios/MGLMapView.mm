@@ -48,6 +48,7 @@ NSString *const MGLDefaultStyleMarkerSymbolName = @"default_marker";
 NSString *const MGLMapboxSetupDocumentationURLDisplayString = @"mapbox.com/help/first-steps-ios-sdk";
 
 const NSTimeInterval MGLAnimationDuration = 0.3;
+const NSTimeInterval MGLFlyDuration = 3.0;
 const CGSize MGLAnnotationUpdateViewportOutset = {150, 150};
 const CGFloat MGLMinimumZoom = 3;
 const CGFloat MGLMinimumPitch = 0;
@@ -1923,6 +1924,35 @@ mbgl::LatLngBounds MGLLatLngBoundsFromCoordinateBounds(MGLCoordinateBounds coord
         };
     }
     _mbglMap->easeTo(options);
+}
+
+- (void)flyTo:(CLLocationCoordinate2D *)coordinate zoomLevel:(double)zoomLevel direction:(CLLocationDirection)direction completionHandler:(nullable void (^)(void))completion
+{
+    _mbglMap->cancelTransitions();
+    NSTimeInterval duration = MGLFlyDuration;
+    mbgl::CameraOptions options;
+    options.center = MGLLatLngFromLocationCoordinate2D(*coordinate);
+    options.zoom = fmaxf(zoomLevel, self.currentMinimumZoom);
+    if (direction >= 0)
+    {
+        options.angle = MGLRadiansFromDegrees(-direction);
+    }
+    options.duration = durationInSeconds(duration);
+    options.easing = MGLUnitBezierForMediaTimingFunction(nil);
+    if (completion)
+    {
+        options.transitionFinishFn = [completion]() {
+            // Must run asynchronously after the transition is completely over.
+            // Otherwise, a call to -setCenterCoordinate: within the completion
+            // handler would reenter the completion handler’s caller.
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                completion();
+            });
+        };
+    }
+    _mbglMap->flyTo(options);
+    
+    [self unrotateIfNeededAnimated:YES];
 }
 
 - (CLLocationCoordinate2D)convertPoint:(CGPoint)point toCoordinateFromView:(nullable UIView *)view

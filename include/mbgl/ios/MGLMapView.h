@@ -218,6 +218,10 @@ IB_DESIGNABLE
 *   @param completion The block to execute after the animation finishes. */
 - (void)setCamera:(MGLMapCamera *)camera withDuration:(NSTimeInterval)duration animationTimingFunction:(nullable CAMediaTimingFunction *)function completionHandler:(nullable void (^)(void))completion;
 
+#pragma mark - flyTo
+
+- (void)flyTo:(CLLocationCoordinate2D *)coordinate zoomLevel:(double)zoomLevel direction:(CLLocationDirection)direction completionHandler:(nullable void (^)(void))completion;
+
 #pragma mark - Converting Map Coordinates
 
 /** @name Converting Map Coordinates */
