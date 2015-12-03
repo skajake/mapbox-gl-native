@@ -15,7 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 /** The subtitle of the shape annotation. The default value of this property is `nil`. */
 @property (nonatomic, copy, nullable) NSString *subtitle;
 
-#if TARGET_OS_MAC
+#if !TARGET_OS_IPHONE
 
 /** The tooltip of the shape annotation. The default value of this property is `nil`. */
 @property (nonatomic, copy, nullable) NSString *toolTip;

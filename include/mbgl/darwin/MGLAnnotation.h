@@ -30,7 +30,7 @@ NS_ASSUME_NONNULL_BEGIN
 *   This string is displayed in the callout for the associated annotation. */
 @property (nonatomic, readonly, copy, nullable) NSString *subtitle;
 
-#if TARGET_OS_MAC
+#if !TARGET_OS_IPHONE
 
 /** The string containing the annotation’s tooltip. */
 @property (nonatomic, readonly, copy, nullable) NSString *toolTip;
