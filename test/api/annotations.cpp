@@ -27,8 +27,7 @@ std::string getFileSourceRoot() {
 } // namespace
 
 std::shared_ptr<SpriteImage> defaultMarker() {
-    PremultipliedImage image = decodeImage(util::read_file("test/fixtures/sprites/default_marker.png"));
-    return std::make_shared<SpriteImage>(image.width, image.height, 1.0, std::string(reinterpret_cast<char*>(image.data.get()), image.size()));
+    return std::make_shared<SpriteImage>(decodeImage(util::read_file("test/fixtures/sprites/default_marker.png")), 1.0);
 }
 
 PremultipliedImage render(Map& map) {
