@@ -26,7 +26,7 @@
         '../platform/darwin/MGLStyle.mm',
         '../include/mbgl/darwin/MGLGeometry.h',
         '../platform/darwin/MGLGeometry_Private.h',
-        '../platform/darwin/MGLGeometry.m',
+        '../platform/darwin/MGLGeometry.mm',
         '../include/mbgl/darwin/MGLAnnotation.h',
         '../include/mbgl/darwin/MGLShape.h',
         '../platform/darwin/MGLShape.m',

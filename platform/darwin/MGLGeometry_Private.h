@@ -5,6 +5,10 @@
 #import <mbgl/map/map.hpp>
 #import <mbgl/util/geo.hpp>
 
+/// Returns the smallest rectangle that contains both the given rectangle and
+/// the given point.
+CGRect MGLExtendRect(CGRect rect, CGPoint point);
+
 NS_INLINE mbgl::LatLng MGLLatLngFromLocationCoordinate2D(CLLocationCoordinate2D coordinate) {
     return mbgl::LatLng(coordinate.latitude, coordinate.longitude);
 }

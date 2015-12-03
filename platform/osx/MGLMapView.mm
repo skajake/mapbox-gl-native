@@ -507,7 +507,7 @@ public:
 #pragma mark View hierarchy and drawing
 
 - (void)viewWillMoveToWindow:(NSWindow *)newWindow {
-    [self deselectAnnotation:self.selectedAnnotation animated:NO];
+    [self deselectAnnotation:self.selectedAnnotation];
     if (!self.dormant && !newWindow) {
         self.dormant = YES;
         _mbglMap->pause();
@@ -846,7 +846,7 @@ public:
 }
 
 - (MGLCoordinateBounds)visibleCoordinateBounds {
-    return [self convertRectToCoordinateBounds:self.bounds];
+    return [self convertRect:self.bounds toCoordinateBoundsFromView:self];
 }
 
 - (void)setVisibleCoordinateBounds:(MGLCoordinateBounds)bounds {
@@ -990,10 +990,10 @@ public:
         if (hitAnnotationTag != _selectedAnnotationTag) {
             id <MGLAnnotation> annotation = [self annotationWithTag:hitAnnotationTag];
             NSAssert(annotation, @"Cannot select nonexistent annotation with ID %i", hitAnnotationTag);
-            [self selectAnnotation:annotation animated:YES];
+            [self selectAnnotation:annotation];
         }
     } else {
-        [self deselectAnnotation:self.selectedAnnotation animated:YES];
+        [self deselectAnnotation:self.selectedAnnotation];
     }
 }
 
@@ -1353,7 +1353,7 @@ public:
         _annotationContextsByAnnotationTag.erase(annotationTag);
         
         if (annotationTag == _selectedAnnotationTag) {
-            [self deselectAnnotation:annotation animated:NO];
+            [self deselectAnnotation:annotation];
         }
         
         if (annotationTag == _lastSelectedAnnotationTag) {
@@ -1481,7 +1481,7 @@ public:
 
 /// Returns the tags of the annotations coincident with the given rectangle.
 - (std::vector<MGLAnnotationTag>)annotationTagsInRect:(NSRect)rect {
-    mbgl::LatLngBounds queryBounds = [self convertRectToLatLngBounds:rect];
+    mbgl::LatLngBounds queryBounds = [self convertRect:rect toLatLngBoundsFromView:self];
     return _mbglMap->getPointAnnotationsInBounds(queryBounds);
 }
 
@@ -1507,11 +1507,11 @@ public:
     
     // Select the annotation if it’s visible.
     if (MGLCoordinateInCoordinateBounds(firstAnnotation.coordinate, self.visibleCoordinateBounds)) {
-        [self selectAnnotation:firstAnnotation animated:NO];
+        [self selectAnnotation:firstAnnotation];
     }
 }
 
-- (void)selectAnnotation:(id <MGLAnnotation>)annotation animated:(BOOL)animated
+- (void)selectAnnotation:(id <MGLAnnotation>)annotation
 {
     // Only point annotations can be selected.
     if (!annotation || [annotation isKindOfClass:[MGLMultiPoint class]]) {
@@ -1524,7 +1524,7 @@ public:
     }
     
     // Deselect the annotation before reselecting it.
-    [self deselectAnnotation:selectedAnnotation animated:NO];
+    [self deselectAnnotation:selectedAnnotation];
     
     // Add the annotation to the map if it hasn’t been added yet.
     MGLAnnotationTag annotationTag = [self annotationTagForAnnotation:annotation];
@@ -1552,7 +1552,6 @@ public:
         && [self.delegate respondsToSelector:@selector(mapView:annotationCanShowCallout:)]
         && [self.delegate mapView:self annotationCanShowCallout:annotation]) {
         NSPopover *callout = [self calloutForAnnotation:annotation];
-        callout.animates = animated;
         
         // Hang the callout off the right edge of the annotation image’s
         // alignment rect, or off the left edge in a right-to-left UI.
@@ -1626,14 +1625,13 @@ public:
     return [self dequeueReusableAnnotationImageWithIdentifier:symbolName];
 }
 
-- (void)deselectAnnotation:(id <MGLAnnotation>)annotation animated:(BOOL)animated {
+- (void)deselectAnnotation:(id <MGLAnnotation>)annotation {
     if (!annotation || self.selectedAnnotation != annotation) {
         return;
     }
     
     // Close the callout popover gracefully.
     NSPopover *callout = self.calloutForSelectedAnnotation;
-    callout.animates = animated;
     [callout performClose:self];
     
     self.selectedAnnotation = nil;
@@ -1821,40 +1819,50 @@ public:
 
 #pragma mark Geometric methods
 
-- (CLLocationCoordinate2D)convertPoint:(NSPoint)point toCoordinateFromView:(nullable NSView *)view {
-    return MGLLocationCoordinate2DFromLatLng([self convertPoint:point toLatLngFromView:view]);
-}
-
-/// Converts a point in the view’s coordinate system to a coordinate pair.
-- (mbgl::LatLng)convertPoint:(NSPoint)point toLatLngFromView:(nullable NSView *)view {
-    NSPoint convertedPoint = [self convertPoint:point fromView:view];
-    return _mbglMap->latLngForPixel(mbgl::PrecisionPoint(convertedPoint.x, convertedPoint.y));
-}
-
 - (NSPoint)convertCoordinate:(CLLocationCoordinate2D)coordinate toPointToView:(nullable NSView *)view {
     return [self convertLatLng:MGLLatLngFromLocationCoordinate2D(coordinate) toPointToView:view];
 }
 
-/// Converts a coordinate pair to a point in the view’s coordinate system.
+/// Converts a geographic coordinate to a point in the view’s coordinate system.
 - (NSPoint)convertLatLng:(mbgl::LatLng)latLng toPointToView:(nullable NSView *)view {
     mbgl::vec2<double> pixel = _mbglMap->pixelForLatLng(latLng);
     return [self convertPoint:NSMakePoint(pixel.x, pixel.y) toView:view];
 }
 
-/// Converts a rectangle in the view’s coordinate system to a coordinate
-/// bounding box.
-- (MGLCoordinateBounds)convertRectToCoordinateBounds:(NSRect)rect {
-    return MGLCoordinateBoundsFromLatLngBounds([self convertRectToLatLngBounds:rect]);
+- (CLLocationCoordinate2D)convertPoint:(NSPoint)point toCoordinateFromView:(nullable NSView *)view {
+    return MGLLocationCoordinate2DFromLatLng([self convertPoint:point toLatLngFromView:view]);
 }
 
-/// Converts a rectangle in the view’s coordinate system to a coordinate
+/// Converts a point in the view’s coordinate system to a geographic coordinate.
+- (mbgl::LatLng)convertPoint:(NSPoint)point toLatLngFromView:(nullable NSView *)view {
+    NSPoint convertedPoint = [self convertPoint:point fromView:view];
+    return _mbglMap->latLngForPixel(mbgl::PrecisionPoint(convertedPoint.x, convertedPoint.y));
+}
+
+- (NSRect)convertCoordinateBounds:(MGLCoordinateBounds)bounds toRectToView:(nullable NSView *)view {
+    return [self convertLatLngBounds:MGLLatLngBoundsFromCoordinateBounds(bounds) toRectToView:view];
+}
+
+/// Converts a geographic bounding box to a rectangle in the view’s coordinate
+/// system.
+- (NSRect)convertLatLngBounds:(mbgl::LatLngBounds)bounds toRectToView:(nullable NSView *)view {
+    NSRect rect = { [self convertLatLng:bounds.sw toPointToView:view], NSZeroSize };
+    rect = MGLExtendRect(rect, [self convertLatLng:bounds.ne toPointToView:view]);
+    return rect;
+}
+
+- (MGLCoordinateBounds)convertRect:(NSRect)rect toCoordinateBoundsFromView:(nullable NSView *)view {
+    return MGLCoordinateBoundsFromLatLngBounds([self convertRect:rect toLatLngBoundsFromView:view]);
+}
+
+/// Converts a rectangle in the given view’s coordinate system to a geographic
 /// bounding box.
-- (mbgl::LatLngBounds)convertRectToLatLngBounds:(NSRect)rect {
+- (mbgl::LatLngBounds)convertRect:(NSRect)rect toLatLngBoundsFromView:(nullable NSView *)view {
     mbgl::LatLngBounds bounds = mbgl::LatLngBounds::getExtendable();
-    bounds.extend([self convertPoint:rect.origin toLatLngFromView:self]);
-    bounds.extend([self convertPoint:{ NSMaxX(rect), NSMinY(rect) } toLatLngFromView:self]);
-    bounds.extend([self convertPoint:{ NSMaxX(rect), NSMaxY(rect) } toLatLngFromView:self]);
-    bounds.extend([self convertPoint:{ NSMinX(rect), NSMaxY(rect) } toLatLngFromView:self]);
+    bounds.extend([self convertPoint:rect.origin toLatLngFromView:view]);
+    bounds.extend([self convertPoint:{ NSMaxX(rect), NSMinY(rect) } toLatLngFromView:view]);
+    bounds.extend([self convertPoint:{ NSMaxX(rect), NSMaxY(rect) } toLatLngFromView:view]);
+    bounds.extend([self convertPoint:{ NSMinX(rect), NSMaxY(rect) } toLatLngFromView:view]);
     
     // The world is wrapping if a point just outside the bounds is also within
     // the rect.
@@ -1872,7 +1880,7 @@ public:
     }
     
     // If the world is wrapping, extend the bounds to cover all longitudes.
-    if (NSPointInRect([self convertLatLng:outsideLatLng toPointToView:self], rect)) {
+    if (NSPointInRect([self convertLatLng:outsideLatLng toPointToView:view], rect)) {
         bounds.sw.longitude = -180;
         bounds.ne.longitude = 180;
     }
