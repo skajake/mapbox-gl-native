@@ -23,6 +23,7 @@ Pod::Spec.new do |m|
   m.requires_arc = true
 
   m.preserve_paths = '**'
+  m.resource_bundle = { 'Mapbox' => 'Mapbox.framework/Mapbox.bundle/*' }
   m.vendored_frameworks = 'Mapbox.framework'
   m.module_name = 'Mapbox'
 
