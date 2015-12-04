@@ -1,7 +1,7 @@
 #import "MBXViewController.h"
 
-#import <mbgl/ios/Mapbox.h>
-#import <mbgl/util/default_styles.hpp>
+#import <Mapbox/Mapbox.h>
+#import "../../include/mbgl/util/default_styles.hpp"
 
 #import <CoreLocation/CoreLocation.h>
 

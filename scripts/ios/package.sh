@@ -35,11 +35,11 @@ trap finish EXIT
 
 
 rm -rf ${OUTPUT}
-mkdir -p "${OUTPUT}"/static
+mkdir -p "${OUTPUT}"/dynamic
 
 
 step "Recording library version..."
-VERSION="${OUTPUT}"/static/version.txt
+VERSION="${OUTPUT}"/dynamic/version.txt
 echo -n "https://github.com/mapbox/mapbox-gl-native/commit/" > ${VERSION}
 HASH=`git log | head -1 | awk '{ print $2 }' | cut -c 1-10` && true
 echo -n "mapbox-gl-native "
@@ -53,74 +53,75 @@ export BUILDTYPE=${BUILDTYPE:-Release}
 export HOST=ios
 make Xcode/ios
 
+PROJ_VERSION=${TRAVIS_JOB_NUMBER:-${BITRISE_BUILD_NUMBER:-0}}
+
 if [[ "${BUILD_FOR_DEVICE}" == true ]]; then
-    step "Building iOS device targets..."
+    step "Building iOS device targets (build ${PROJ_VERSION})..."
     xcodebuild -sdk iphoneos${IOS_SDK_VERSION} \
         ARCHS="arm64 armv7 armv7s" \
         ONLY_ACTIVE_ARCH=NO \
         GCC_GENERATE_DEBUGGING_SYMBOLS=${GCC_GENERATE_DEBUGGING_SYMBOLS} \
         ENABLE_BITCODE=${ENABLE_BITCODE} \
         DEPLOYMENT_POSTPROCESSING=YES \
-        -project ./build/ios-all/gyp/mbgl.xcodeproj \
+        CURRENT_PROJECT_VERSION=${PROJ_VERSION} \
+        -project ./build/ios-all/gyp/ios.xcodeproj \
         -configuration ${BUILDTYPE} \
-        -target everything \
+        -target iossdk \
         -jobs ${JOBS}
 fi
 
-step "Building iOS Simulator targets..."
+step "Building iOS Simulator targets (build ${PROJ_VERSION})..."
 xcodebuild -sdk iphonesimulator${IOS_SDK_VERSION} \
-    ARCHS="x86_64 i386" \
     ONLY_ACTIVE_ARCH=NO \
     GCC_GENERATE_DEBUGGING_SYMBOLS=${GCC_GENERATE_DEBUGGING_SYMBOLS} \
-    -project ./build/ios-all/gyp/mbgl.xcodeproj \
+    ENABLE_BITCODE=${ENABLE_BITCODE} \
+    CURRENT_PROJECT_VERSION=${PROJ_VERSION} \
+    -project ./build/ios-all/gyp/ios.xcodeproj \
     -configuration ${BUILDTYPE} \
-    -target everything \
+    -target iossdk \
     -jobs ${JOBS}
 
+#if [[ "${BUILD_FOR_DEVICE}" == true ]]; then
+#    step "Merging device and simulator targets..."
+#    
+#    libtool -dynamic -no_warning_for_no_symbols \
+#        gyp/build/${BUILDTYPE}-iphoneos/${NAME}.framework \
+#        gyp/build/${BUILDTYPE}-iphonesimulator/${NAME}.framework \
+#        -o ${OUTPUT}/dynamic/${NAME}.framework
+#fi
 
-step "Building static library..."
-LIBS=(core.a platform-ios.a asset-fs.a cache-sqlite.a http-nsurl.a)
+step "Copying framework..."
 if [[ "${BUILD_FOR_DEVICE}" == true ]]; then
-    libtool -static -no_warning_for_no_symbols \
-        `find mason_packages/ios-${IOS_SDK_VERSION} -type f -name libuv.a` \
-        `find mason_packages/ios-${IOS_SDK_VERSION} -type f -name libgeojsonvt.a` \
-        -o ${OUTPUT}/static/lib${NAME}.a \
-        ${LIBS[@]/#/gyp/build/${BUILDTYPE}-iphoneos/libmbgl-} \
-        ${LIBS[@]/#/gyp/build/${BUILDTYPE}-iphonesimulator/libmbgl-}
+    cp -r gyp/build/${BUILDTYPE}-iphoneos/${NAME}.framework ${OUTPUT}/dynamic/${NAME}.framework
 else
-    libtool -static -no_warning_for_no_symbols \
-        `find mason_packages/ios-${IOS_SDK_VERSION} -type f -name libuv.a` \
-        `find mason_packages/ios-${IOS_SDK_VERSION} -type f -name libgeojsonvt.a` \
-        -o ${OUTPUT}/static/lib${NAME}.a \
-        ${LIBS[@]/#/gyp/build/${BUILDTYPE}-iphonesimulator/libmbgl-}
+    cp -r gyp/build/${BUILDTYPE}-iphonesimulator/${NAME}.framework ${OUTPUT}/dynamic/${NAME}.framework
 fi
-echo "Created ${OUTPUT}/static/lib${NAME}.a"
+#LIBS=(core.a platform-ios.a asset-fs.a cache-sqlite.a http-nsurl.a)
+#if [[ "${BUILD_FOR_DEVICE}" == true ]]; then
+#    libtool -dynamic -no_warning_for_no_symbols \
+#        `find mason_packages/ios-${IOS_SDK_VERSION} -type f -name libuv.a` \
+#        `find mason_packages/ios-${IOS_SDK_VERSION} -type f -name libgeojsonvt.a` \
+#        -o ${OUTPUT}/static/lib${NAME}.a \
+#        ${LIBS[@]/#/gyp/build/${BUILDTYPE}-iphoneos/libmbgl-} \
+#        ${LIBS[@]/#/gyp/build/${BUILDTYPE}-iphonesimulator/libmbgl-}
+#else
+#    libtool -dynamic -no_warning_for_no_symbols \
+#        `find mason_packages/ios-${IOS_SDK_VERSION} -type f -name libuv.a` \
+#        `find mason_packages/ios-${IOS_SDK_VERSION} -type f -name libgeojsonvt.a` \
+#        -o ${OUTPUT}/static/lib${NAME}.a \
+#        ${LIBS[@]/#/gyp/build/${BUILDTYPE}-iphonesimulator/libmbgl-}
+#fi
+echo "Created ${OUTPUT}/dynamic/${NAME}.framework"
 
-
-step "Copying Headers..."
-mkdir -p "${OUTPUT}/static/Headers"
-for i in `ls -R include/mbgl/ios | grep -vi private`; do
-    cp -pv include/mbgl/ios/$i "${OUTPUT}/static/Headers"
-done
-
-step "Setting up dummy source file for CocoaPods 0.37.0..."
-echo "// https://github.com/mapbox/mapbox-gl-native/issues/1426" > "${OUTPUT}/static/MGLDummy.m"
-
-
-# Manually create resource bundle. We don't use a GYP target here because of
-# complications between faked GYP bundles-as-executables, device build
-# dependencies, and code signing.
 step "Copying Resources..."
-cp -pv LICENSE.md "${OUTPUT}/static"
-mkdir -p "${OUTPUT}/static/${NAME}.bundle"
-cp -pv platform/ios/resources/* "${OUTPUT}/static/${NAME}.bundle"
+cp -pv LICENSE.md "${OUTPUT}/dynamic"
 
 step "Creating API Docs..."
 if [ -z `which appledoc` ]; then
     echo "Unable to find appledoc. See https://github.com/mapbox/mapbox-gl-native/blob/master/docs/BUILD_IOS_OSX.md"
     exit 1
 fi
-DOCS_OUTPUT="${OUTPUT}/static/Docs"
+DOCS_OUTPUT="${OUTPUT}/dynamic/Docs"
 DOCS_VERSION=$( git tag | grep ^ios | sed 's/^ios-//' | sort -r | grep -v '\-rc.' | grep -v '\-pre.' | sed -n '1p' | sed 's/^v//' )
 rm -rf /tmp/mbgl
 mkdir -p /tmp/mbgl/
@@ -130,7 +131,7 @@ echo >> ${README}
 echo -n "#" >> ${README}
 cat CHANGELOG.md | sed -n "/^## iOS ${DOCS_VERSION}/,/^##/p" | sed '$d' >> ${README}
 # Copy headers to a temporary location where we can substitute macros that appledoc doesn't understand.
-cp -r "${OUTPUT}/static/Headers" /tmp/mbgl
+cp -r "${OUTPUT}/dynamic/${NAME}.framework/Headers" /tmp/mbgl
 perl \
     -pi \
     -e 's/NS_(?:(MUTABLE)_)?(ARRAY|SET|DICTIONARY)_OF\(\s*(.+?)\s*\)/NS\L\u$1\u$2\E <$3>/g' \
@@ -145,4 +146,4 @@ appledoc \
     --company-id com.mapbox \
     --index-desc ${README} \
     /tmp/mbgl/Headers
-cp ${README} "${OUTPUT}/static"
+cp ${README} "${OUTPUT}/dynamic"

@@ -3052,25 +3052,16 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng)
 
 + (UIImage *)resourceImageNamed:(NSString *)imageName
 {
-    if ( ! [[imageName pathExtension] length])
-    {
-        imageName = [imageName stringByAppendingString:@".png"];
-    }
-
-    return [UIImage imageWithContentsOfFile:[self pathForBundleResourceNamed:imageName ofType:nil inDirectory:@""]];
-}
-
-+ (NSString *)pathForBundleResourceNamed:(NSString *)name ofType:(NSString *)extension inDirectory:(NSString *)directory
-{
-    NSString *path = [[NSBundle bundleWithPath:[NSBundle mgl_resourceBundlePath]] pathForResource:name ofType:extension inDirectory:directory];
-
-    if (!path)
+    NSString *extension = imageName.pathExtension ? imageName.pathExtension : @"png";
+    NSString *path = [[NSBundle mgl_frameworkBundle] pathForResource:imageName.stringByDeletingPathExtension
+                                                              ofType:extension];
+    if ( ! path)
     {
         [NSException raise:@"Resource not found" format:
-         @"The resource named “%@” could not be found in the Mapbox resource bundle.", name];
+         @"The resource named “%@” could not be found in the Mapbox resource bundle.", imageName];
     }
-
-    return path;
+    
+    return [UIImage imageWithContentsOfFile:path];
 }
 
 - (BOOL)isFullyLoaded

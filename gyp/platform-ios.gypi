@@ -57,8 +57,6 @@
         '../platform/ios/MGLAnnotationImage.m',
         '../include/mbgl/ios/MGLStyle.h',
         '../platform/ios/MGLStyle.mm',
-        '../platform/ios/MGLCategoryLoader.h',
-        '../platform/ios/MGLCategoryLoader.m',
         '../platform/ios/NSBundle+MGLAdditions.h',
         '../platform/ios/NSBundle+MGLAdditions.m',
         '../platform/ios/NSException+MGLAdditions.h',
@@ -83,14 +81,16 @@
         ],
         'libraries': [
           '<@(libuv_static_libs)',
-        ],
-        'ldflags': [
-          '-framework CoreLocation',
-          '-framework GLKit',
-          '-framework ImageIO',
-          '-framework MobileCoreServices',
-          '-framework QuartzCore',
-          '-framework SystemConfiguration',
+          '$(SDKROOT)/System/Library/Frameworks/CoreGraphics.framework',
+          '$(SDKROOT)/System/Library/Frameworks/CoreLocation.framework',
+          '$(SDKROOT)/System/Library/Frameworks/GLKit.framework',
+          '$(SDKROOT)/System/Library/Frameworks/ImageIO.framework',
+          '$(SDKROOT)/System/Library/Frameworks/MobileCoreServices.framework',
+          '$(SDKROOT)/System/Library/Frameworks/OpenGLES.framework',
+          '$(SDKROOT)/System/Library/Frameworks/QuartzCore.framework',
+          '$(SDKROOT)/System/Library/Frameworks/Security.framework',
+          '$(SDKROOT)/System/Library/Frameworks/SystemConfiguration.framework',
+          '$(SDKROOT)/System/Library/Frameworks/UIKit.framework',
         ],
       },
 
@@ -107,14 +107,10 @@
 
       'link_settings': {
         'libraries': [ '<@(libraries)' ],
-        'xcode_settings': {
-          'OTHER_LDFLAGS': [ '<@(ldflags)' ],
-        },
       },
 
       'direct_dependent_settings': {
-        'include_dirs': [
-          '../include',
+        'libraries': [
         ],
         'mac_bundle_resources': [
           '<!@(find ../platform/ios/resources -type f \! -name "README")',
