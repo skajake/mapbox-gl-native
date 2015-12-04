@@ -18,6 +18,9 @@ cat ../../../../ios/framework/umbrella >> Mapbox.framework/Headers/Mapbox.h
 # resources
 cp -rv ../static/Mapbox.bundle Mapbox.framework/Mapbox.bundle
 
+# license
+cp -v ../../../../LICENSE.md Mapbox.framework
+
 # settings bundle
 cp -rv ../../../../ios/framework/Settings.bundle Mapbox.framework/Settings.bundle
 
