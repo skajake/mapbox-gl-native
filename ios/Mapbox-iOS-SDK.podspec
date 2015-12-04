@@ -1,7 +1,7 @@
 Pod::Spec.new do |m|
 
   m.name    = 'Mapbox-iOS-SDK'
-  m.version = '3.0.0-symbols'
+  m.version = '3.0.1-pre.1-symbols'
 
   m.summary          = 'Open source vector map solution for iOS with full styling capabilities.'
   m.description      = 'Open source OpenGL-based vector map solution for iOS with full styling capabilities and Cocoa bindings.'
@@ -13,7 +13,7 @@ Pod::Spec.new do |m|
   m.documentation_url = 'https://www.mapbox.com/ios-sdk/'
 
   m.source = {
-    :http => "https://dl.dropboxusercontent.com/u/575564/Mapbox.framework-3.0.0-rc.1.zip",
+    :http => "https://dl.dropboxusercontent.com/u/575564/Mapbox.framework-3.0.1-pre.1.zip",
     :flatten => true
   }
 
