@@ -7,6 +7,8 @@
 #include <mbgl/map/map_data.hpp>
 #include <mbgl/annotation/point_annotation.hpp>
 #include <mbgl/annotation/shape_annotation.hpp>
+#include <mbgl/style/style_layer.hpp>
+#include <mbgl/layer/custom_layer.hpp>
 
 #include <mbgl/util/projection.hpp>
 #include <mbgl/util/thread.hpp>
@@ -153,6 +155,12 @@ void Map::jumpTo(const CameraOptions& options) {
 
 void Map::easeTo(const CameraOptions& options) {
     transform->easeTo(options);
+    update(options.zoom ? Update::Zoom : Update::Repaint);
+}
+    
+    
+void Map::flyTo(const CameraOptions& options) {
+    transform->flyTo(options);
     update(options.zoom ? Update::Zoom : Update::Repaint);
 }
 
@@ -326,12 +334,24 @@ void Map::resetNorth(const Duration& duration) {
 #pragma mark - Pitch
 
 void Map::setPitch(double pitch, const Duration& duration) {
-    transform->setPitch(util::clamp(pitch, 0., 60.) * M_PI / 180, duration);
+    transform->setPitch(pitch * M_PI / 180, duration);
     update(Update::Repaint);
 }
 
 double Map::getPitch() const {
     return transform->getPitch() / M_PI * 180;
+}
+
+
+#pragma mark - North Orientation
+
+void Map::setNorthOrientation(NorthOrientation orientation) {
+    transform->setNorthOrientation(orientation);
+    update(Update::Repaint);
+}
+
+NorthOrientation Map::getNorthOrientation() const {
+    return transform->getNorthOrientation();
 }
 
 
@@ -372,7 +392,7 @@ void Map::addAnnotationIcon(const std::string& name, std::shared_ptr<const Sprit
 }
 
 void Map::removeAnnotationIcon(const std::string& name) {
-    addAnnotationIcon(name, nullptr);
+    context->invoke(&MapContext::removeAnnotationIcon, name);
 }
 
 double Map::getTopOffsetPixelsForAnnotationIcon(const std::string& symbol) {
@@ -414,6 +434,23 @@ AnnotationIDs Map::getPointAnnotationsInBounds(const LatLngBounds& bounds) {
 
 LatLngBounds Map::getBoundsForAnnotations(const AnnotationIDs& annotations) {
     return data->getAnnotationManager()->getBoundsForAnnotations(annotations);
+}
+    
+#pragma mark - Style API
+
+void Map::addCustomLayer(const std::string& id,
+                         CustomLayerInitializeFunction initialize,
+                         CustomLayerRenderFunction render,
+                         CustomLayerDeinitializeFunction deinitialize,
+                         void* context_,
+                         const char* before) {
+    context->invoke(&MapContext::addLayer,
+        std::make_unique<CustomLayer>(id, initialize, render, deinitialize, context_),
+        before ? std::string(before) : mapbox::util::optional<std::string>());
+}
+
+void Map::removeCustomLayer(const std::string& id) {
+    context->invoke(&MapContext::removeLayer, id);
 }
 
 #pragma mark - Toggles

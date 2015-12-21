@@ -9,6 +9,7 @@
 #include <mbgl/util/noncopyable.hpp>
 #include <mbgl/util/vec.hpp>
 #include <mbgl/annotation/annotation.hpp>
+#include <mbgl/style/types.hpp>
 
 #include <cstdint>
 #include <string>
@@ -99,6 +100,7 @@ public:
     // Camera
     void jumpTo(const CameraOptions&);
     void easeTo(const CameraOptions&);
+    void flyTo(const CameraOptions&);
 
     // Position
     void moveBy(const PrecisionPoint&, const Duration& = Duration::zero());
@@ -131,6 +133,10 @@ public:
     void setPitch(double pitch, const Duration& = Duration::zero());
     double getPitch() const;
 
+    // North Orientation
+    void setNorthOrientation(NorthOrientation);
+    NorthOrientation getNorthOrientation() const;
+
     // Size
     uint16_t getWidth() const;
     uint16_t getHeight() const;
@@ -161,6 +167,14 @@ public:
 
     AnnotationIDs getPointAnnotationsInBounds(const LatLngBounds&);
     LatLngBounds getBoundsForAnnotations(const AnnotationIDs&);
+
+    void addCustomLayer(const std::string& id,
+                        CustomLayerInitializeFunction,
+                        CustomLayerRenderFunction,
+                        CustomLayerDeinitializeFunction,
+                        void* context,
+                        const char* before = nullptr);
+    void removeCustomLayer(const std::string& id);
 
     // Memory
     void setSourceTileCacheSize(size_t);

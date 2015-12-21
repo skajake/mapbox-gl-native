@@ -1,3 +1,11 @@
+# 2.2.0
+
+- Adds support for GeoJSON sources [#2161](https://github.com/mapbox/mapbox-gl-native/pull/2161)
+
+# 2.1.0
+
+- Adds [`line-offset`](https://github.com/mapbox/mapbox-gl/issues/3) style property support
+
 # 2.0.1
 
 - Test and publish binaries for Node.js v5.x. ([#3129](https://github.com/mapbox/mapbox-gl-native/pull/3129))

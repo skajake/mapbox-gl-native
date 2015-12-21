@@ -4,6 +4,7 @@
 #include <mbgl/map/tile.hpp>
 #include <mbgl/map/transform_state.hpp>
 #include <mbgl/layer/symbol_layer.hpp>
+#include <mbgl/layer/custom_layer.hpp>
 #include <mbgl/sprite/sprite_store.hpp>
 #include <mbgl/sprite/sprite_atlas.hpp>
 #include <mbgl/style/style_layer.hpp>
@@ -41,7 +42,7 @@ Style::Style(MapData& data_)
 }
 
 void Style::setJSON(const std::string& json, const std::string&) {
-    rapidjson::Document doc;
+    rapidjson::GenericDocument<rapidjson::UTF8<>, rapidjson::CrtAllocator> doc;
     doc.Parse<0>((const char *const)json.c_str());
     if (doc.HasParseError()) {
         Log::Error(Event::ParseStyle, "Error parsing style JSON at %i: %s", doc.GetErrorOffset(), rapidjson::GetParseError_En(doc.GetParseError()));
@@ -76,7 +77,6 @@ Style::~Style() {
 
 void Style::addSource(std::unique_ptr<Source> source) {
     source->setObserver(this);
-    source->load();
     sources.emplace_back(std::move(source));
 }
 
@@ -100,18 +100,18 @@ StyleLayer* Style::getLayer(const std::string& id) const {
     return it != layers.end() ? it->get() : nullptr;
 }
 
-void Style::addLayer(std::unique_ptr<StyleLayer> layer) {
-    if (SymbolLayer* symbolLayer = dynamic_cast<SymbolLayer*>(layer.get())) {
+void Style::addLayer(std::unique_ptr<StyleLayer> layer, mapbox::util::optional<std::string> before) {
+    if (SymbolLayer* symbolLayer = layer->as<SymbolLayer>()) {
         if (!symbolLayer->spriteAtlas) {
             symbolLayer->spriteAtlas = spriteAtlas.get();
         }
     }
 
-    layers.emplace_back(std::move(layer));
-}
+    if (CustomLayer* customLayer = layer->as<CustomLayer>()) {
+        customLayer->initialize();
+    }
 
-void Style::addLayer(std::unique_ptr<StyleLayer> layer, const std::string& before) {
-    layers.emplace(findLayer(before), std::move(layer));
+    layers.emplace(before ? findLayer(*before) : layers.end(), std::move(layer));
 }
 
 void Style::removeLayer(const std::string& id) {
@@ -183,11 +183,10 @@ void Style::recalculate(float z) {
         hasPendingTransitions |= layer->recalculate(parameters);
 
         Source* source = getSource(layer->source);
-        if (!source) {
-            continue;
+        if (source && layer->needsRendering()) {
+            source->enabled = true;
+            if (!source->loaded && !source->isLoading()) source->load();
         }
-
-        source->enabled = true;
     }
 }
 
@@ -208,10 +207,8 @@ bool Style::isLoaded() const {
         return false;
     }
 
-    for (const auto& source : sources) {
-        if (!source->isLoaded()) {
-            return false;
-        }
+    for (const auto& source: sources) {
+        if (source->enabled && !source->isLoaded()) return false;
     }
 
     if (!spriteStore->isLoaded()) {
@@ -234,8 +231,8 @@ RenderData Style::getRenderData() const {
         if (layer->visibility == VisibilityType::None)
             continue;
 
-        if (const BackgroundLayer* background = dynamic_cast<const BackgroundLayer*>(layer.get())) {
-            if (background->paint.pattern.value.from.empty()) {
+        if (const BackgroundLayer* background = layer->as<BackgroundLayer>()) {
+            if (layer.get() == layers[0].get() && background->paint.pattern.value.from.empty()) {
                 // This is a solid background. We can use glClear().
                 result.backgroundColor = background->paint.color;
                 result.backgroundColor[0] *= background->paint.opacity;
@@ -243,9 +240,14 @@ RenderData Style::getRenderData() const {
                 result.backgroundColor[2] *= background->paint.opacity;
                 result.backgroundColor[3] *= background->paint.opacity;
             } else {
-                // This is a textured background. We need to render it with a quad.
+                // This is a textured background, or not the bottommost layer. We need to render it with a quad.
                 result.order.emplace_back(*layer);
             }
+            continue;
+        }
+
+        if (layer->is<CustomLayer>()) {
+            result.order.emplace_back(*layer);
             continue;
         }
 
@@ -262,7 +264,7 @@ RenderData Style::getRenderData() const {
             // We're not clipping symbol layers, so when we have both parents and children of symbol
             // layers, we drop all children in favor of their parent to avoid duplicate labels.
             // See https://github.com/mapbox/mapbox-gl-native/issues/2482
-            if (layer->type == StyleLayerType::Symbol) {
+            if (layer->is<SymbolLayer>()) {
                 bool skip = false;
                 // Look back through the buckets we decided to render to find out whether there is
                 // already a bucket from this layer that is a parent of this tile. Tiles are ordered

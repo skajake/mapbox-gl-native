@@ -18,7 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
 /** @name Getting and Setting Attributes */
 
 /** The image to be displayed for the annotation. */
-@property (nonatomic, readonly) UIImage *image;
+@property (nonatomic, strong) UIImage *image;
 
 /** The string that identifies that this annotation image is reusable. (read-only)
 *

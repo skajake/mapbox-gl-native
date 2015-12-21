@@ -11,6 +11,7 @@
 #include <mbgl/storage/response.hpp>
 
 #include <mbgl/style/style.hpp>
+#include <mbgl/style/style_layer.hpp>
 
 #include <mbgl/sprite/sprite_atlas.hpp>
 #include <mbgl/sprite/sprite_store.hpp>
@@ -271,10 +272,27 @@ void MapContext::addAnnotationIcon(const std::string& name, std::shared_ptr<cons
     assert(util::ThreadContext::currentlyOn(util::ThreadType::Map));
     data.getAnnotationManager()->addIcon(name, sprite);
 }
+    
+void MapContext::removeAnnotationIcon(const std::string& name) {
+    assert(util::ThreadContext::currentlyOn(util::ThreadType::Map));
+    data.getAnnotationManager()->removeIcon(name);
+}
 
 double MapContext::getTopOffsetPixelsForAnnotationIcon(const std::string& name) {
     assert(util::ThreadContext::currentlyOn(util::ThreadType::Map));
     return data.getAnnotationManager()->getTopOffsetPixelsForIcon(name);
+}
+
+void MapContext::addLayer(std::unique_ptr<StyleLayer> layer, mapbox::util::optional<std::string> after) {
+    style->addLayer(std::move(layer), after);
+    updateFlags |= Update::Classes;
+    asyncUpdate.send();
+}
+
+void MapContext::removeLayer(const std::string& id) {
+    style->removeLayer(id);
+    updateFlags |= Update::Classes;
+    asyncUpdate.send();
 }
 
 void MapContext::setSourceTileCacheSize(size_t size) {
@@ -293,7 +311,7 @@ void MapContext::onLowMemory() {
     style->onLowMemory();
     asyncInvalidate.send();
 }
-
+    
 void MapContext::onTileDataChanged() {
     assert(util::ThreadContext::currentlyOn(util::ThreadType::Map));
     updateFlags |= Update::Repaint;

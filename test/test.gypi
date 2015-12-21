@@ -43,14 +43,13 @@
         'api/api_misuse.cpp',
         'api/repeated_render.cpp',
         'api/set_style.cpp',
-
+        'api/custom_layer.cpp',
 
         'miscellaneous/async_task.cpp',
         'miscellaneous/clip_ids.cpp',
         'miscellaneous/binpack.cpp',
         'miscellaneous/bilinear.cpp',
         'miscellaneous/comparisons.cpp',
-        'miscellaneous/enums.cpp',
         'miscellaneous/functions.cpp',
         'miscellaneous/geo.cpp',
         'miscellaneous/image.cpp',
@@ -91,6 +90,8 @@
         'style/glyph_store.cpp',
         'style/pending_resources.cpp',
         'style/resource_loading.cpp',
+        'style/style_layer.cpp',
+        'style/unused_sources.cpp',
 
         'sprite/sprite_atlas.cpp',
         'sprite/sprite_image.cpp',

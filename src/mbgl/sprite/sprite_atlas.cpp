@@ -187,9 +187,12 @@ void SpriteAtlas::updateDirty() {
             // The two names match;
             Holder& holder = imageIterator->second;
             holder.texture = spriteIterator->second;
-            copy(holder, imageIterator->first.second);
-
-            ++imageIterator;
+            if (holder.texture != nullptr) {
+                copy(holder, imageIterator->first.second);
+                ++imageIterator;
+            } else {
+                images.erase(imageIterator++);
+            }
             // Don't advance the spriteIterator because there might be another sprite with the same
             // name, but a different wrap value.
         }

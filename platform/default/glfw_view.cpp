@@ -90,6 +90,7 @@ GLFWView::GLFWView(bool fullscreen_, bool benchmark_)
     printf("- Press `X` to reset the transform\n");
     printf("- Press `N` to reset north\n");
     printf("- Press `R` to toggle any available `night` style class\n");
+    printf("- Press `Z` to cycle through north orientations\n");
     printf("\n");
     printf("- Press `1` through `6` to add increasing numbers of point annotations for testing\n");
     printf("- Press `7` through `0` to add increasing numbers of shape annotations for testing\n");
@@ -150,6 +151,9 @@ void GLFWView::onKey(GLFWwindow *window, int key, int /*scancode*/, int action, 
         case GLFW_KEY_N:
             if (!mods)
                 view->map->resetNorth();
+            break;
+        case GLFW_KEY_Z:
+            view->nextOrientation();
             break;
         case GLFW_KEY_Q:
             view->clearAnnotations();
@@ -214,6 +218,16 @@ GLFWView::makeSpriteImage(int width, int height, float pixelRatio) {
     }
 
     return std::make_shared<mbgl::SpriteImage>(width, height, pixelRatio, std::move(pixels));
+}
+
+void GLFWView::nextOrientation() {
+    using NO = mbgl::NorthOrientation;
+    switch (map->getNorthOrientation()) {
+        case NO::Upwards: map->setNorthOrientation(NO::Rightwards); break;
+        case NO::Rightwards: map->setNorthOrientation(NO::Downwards); break;
+        case NO::Downwards: map->setNorthOrientation(NO::Leftwards); break;
+        default: map->setNorthOrientation(NO::Upwards); break;
+    }
 }
 
 void GLFWView::addRandomCustomPointAnnotations(int count) {
@@ -416,7 +430,11 @@ void GLFWView::invalidate() {
 }
 
 void GLFWView::beforeRender() {
-    // no-op
+    // This is called from the map thread but `width` and `height`
+    // can be accessed with no race because the main thread is blocked
+    // when we render. This will be more straightforward when we move
+    // rendering to the main thread.
+    glViewport(0, 0, fbWidth, fbHeight);
 }
 
 void GLFWView::afterRender() {

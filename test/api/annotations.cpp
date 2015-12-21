@@ -14,45 +14,24 @@
 
 using namespace mbgl;
 
-namespace {
-
-std::string getFileSourceRoot() {
-#ifdef MBGL_ASSET_ZIP
-    return "test/fixtures/annotations/assets.zip";
-#else
-    return "";
-#endif
-}
-
-} // namespace
-
-std::shared_ptr<SpriteImage> defaultMarker() {
-    PremultipliedImage image = decodeImage(util::read_file("test/fixtures/sprites/default_marker.png"));
+std::shared_ptr<SpriteImage> namedMarker(const std::string &name) {
+    PremultipliedImage image = decodeImage(util::read_file("test/fixtures/sprites/" + name));
     return std::make_shared<SpriteImage>(image.width, image.height, 1.0, std::string(reinterpret_cast<char*>(image.data.get()), image.size()));
 }
 
-PremultipliedImage render(Map& map) {
-    std::promise<PremultipliedImage> promise;
-    map.renderStill([&](std::exception_ptr, PremultipliedImage&& image) {
-        promise.set_value(std::move(image));
-    });
-    return promise.get_future().get();
-}
-
 void checkRendering(Map& map, const char * name) {
-    PremultipliedImage actual = render(map);
     test::checkImage(std::string("test/fixtures/annotations/") + name + "/",
-                     actual, 0.0002, 0.1);
+                     test::render(map), 0.0002, 0.1);
 }
 
 TEST(Annotations, PointAnnotation) {
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
-    DefaultFileSource fileSource(nullptr, getFileSourceRoot());
+    DefaultFileSource fileSource(nullptr, test::getFileSourceRoot());
 
     Map map(view, fileSource, MapMode::Still);
     map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"), "");
-    map.addAnnotationIcon("default_marker", defaultMarker());
+    map.addAnnotationIcon("default_marker", namedMarker("default_marker.png"));
     map.addPointAnnotation(PointAnnotation({ 0, 0 }, "default_marker"));
 
     checkRendering(map, "point_annotation");
@@ -61,7 +40,7 @@ TEST(Annotations, PointAnnotation) {
 TEST(Annotations, LineAnnotation) {
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
-    DefaultFileSource fileSource(nullptr, getFileSourceRoot());
+    DefaultFileSource fileSource(nullptr, test::getFileSourceRoot());
 
     Map map(view, fileSource, MapMode::Still);
     map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"), "");
@@ -80,7 +59,7 @@ TEST(Annotations, LineAnnotation) {
 TEST(Annotations, FillAnnotation) {
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
-    DefaultFileSource fileSource(nullptr, getFileSourceRoot());
+    DefaultFileSource fileSource(nullptr, test::getFileSourceRoot());
 
     Map map(view, fileSource, MapMode::Still);
     map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"), "");
@@ -98,7 +77,7 @@ TEST(Annotations, FillAnnotation) {
 TEST(Annotations, StyleSourcedShapeAnnotation) {
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
-    DefaultFileSource fileSource(nullptr, getFileSourceRoot());
+    DefaultFileSource fileSource(nullptr, test::getFileSourceRoot());
 
     Map map(view, fileSource, MapMode::Still);
     map.setStyleJSON(util::read_file("test/fixtures/api/annotation.json"), "");
@@ -113,14 +92,14 @@ TEST(Annotations, StyleSourcedShapeAnnotation) {
 TEST(Annotations, AddMultiple) {
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
-    DefaultFileSource fileSource(nullptr, getFileSourceRoot());
+    DefaultFileSource fileSource(nullptr, test::getFileSourceRoot());
 
     Map map(view, fileSource, MapMode::Still);
     map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"), "");
-    map.addAnnotationIcon("default_marker", defaultMarker());
+    map.addAnnotationIcon("default_marker", namedMarker("default_marker.png"));
     map.addPointAnnotation(PointAnnotation({ 0, -10 }, "default_marker"));
 
-    render(map);
+    test::render(map);
 
     map.addPointAnnotation(PointAnnotation({ 0, 10 }, "default_marker"));
 
@@ -130,12 +109,12 @@ TEST(Annotations, AddMultiple) {
 TEST(Annotations, NonImmediateAdd) {
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
-    DefaultFileSource fileSource(nullptr, getFileSourceRoot());
+    DefaultFileSource fileSource(nullptr, test::getFileSourceRoot());
 
     Map map(view, fileSource, MapMode::Still);
     map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"), "");
 
-    render(map);
+    test::render(map);
 
     AnnotationSegments segments = {{ {{ { 0, 0 }, { 0, 45 }, { 45, 45 }, { 45, 0 } }} }};
 
@@ -147,17 +126,36 @@ TEST(Annotations, NonImmediateAdd) {
     checkRendering(map, "non_immediate_add");
 }
 
-TEST(Annotations, RemovePoint) {
+TEST(Annotations, UpdatePoint) {
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
-    DefaultFileSource fileSource(nullptr, getFileSourceRoot());
+    DefaultFileSource fileSource(nullptr, test::getFileSourceRoot());
 
     Map map(view, fileSource, MapMode::Still);
     map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"), "");
-    map.addAnnotationIcon("default_marker", defaultMarker());
+    map.addAnnotationIcon("flipped_marker", namedMarker("default_marker.png"));
+    map.addPointAnnotation(PointAnnotation({ 0, 0 }, "flipped_marker"));
+
+    test::render(map);
+
+    map.removeAnnotationIcon("flipped_marker");
+    map.addAnnotationIcon("flipped_marker", namedMarker("flipped_marker.png"));
+    map.update(Update::Annotations);
+
+    checkRendering(map, "update_point");
+}
+
+TEST(Annotations, RemovePoint) {
+    auto display = std::make_shared<mbgl::HeadlessDisplay>();
+    HeadlessView view(display, 1);
+    DefaultFileSource fileSource(nullptr, test::getFileSourceRoot());
+
+    Map map(view, fileSource, MapMode::Still);
+    map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"), "");
+    map.addAnnotationIcon("default_marker", namedMarker("default_marker.png"));
     uint32_t point = map.addPointAnnotation(PointAnnotation({ 0, 0 }, "default_marker"));
 
-    render(map);
+    test::render(map);
 
     map.removeAnnotation(point);
 
@@ -167,7 +165,7 @@ TEST(Annotations, RemovePoint) {
 TEST(Annotations, RemoveShape) {
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
-    DefaultFileSource fileSource(nullptr, getFileSourceRoot());
+    DefaultFileSource fileSource(nullptr, test::getFileSourceRoot());
 
     AnnotationSegments segments = {{ {{ { 0, 0 }, { 45, 45 } }} }};
 
@@ -179,7 +177,7 @@ TEST(Annotations, RemoveShape) {
     map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"), "");
     uint32_t shape = map.addShapeAnnotation(ShapeAnnotation(segments, properties));
 
-    render(map);
+    test::render(map);
 
     map.removeAnnotation(shape);
 
@@ -189,26 +187,26 @@ TEST(Annotations, RemoveShape) {
 TEST(Annotations, ImmediateRemoveShape) {
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
-    DefaultFileSource fileSource(nullptr, getFileSourceRoot());
+    DefaultFileSource fileSource(nullptr, test::getFileSourceRoot());
     Map map(view, fileSource, MapMode::Still);
 
     map.removeAnnotation(map.addShapeAnnotation(ShapeAnnotation({}, {})));
     map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"), "");
 
-    render(map);
+    test::render(map);
 }
 
 TEST(Annotations, SwitchStyle) {
     auto display = std::make_shared<mbgl::HeadlessDisplay>();
     HeadlessView view(display, 1);
-    DefaultFileSource fileSource(nullptr, getFileSourceRoot());
+    DefaultFileSource fileSource(nullptr, test::getFileSourceRoot());
 
     Map map(view, fileSource, MapMode::Still);
     map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"), "");
-    map.addAnnotationIcon("default_marker", defaultMarker());
+    map.addAnnotationIcon("default_marker", namedMarker("default_marker.png"));
     map.addPointAnnotation(PointAnnotation({ 0, 0 }, "default_marker"));
 
-    render(map);
+    test::render(map);
 
     map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"), "");
 

@@ -6,21 +6,17 @@
 namespace mbgl {
 
 std::unique_ptr<StyleLayer> LineLayer::clone() const {
-    std::unique_ptr<LineLayer> result = std::make_unique<LineLayer>();
-    result->copy(*this);
-    result->layout = layout;
-    result->paint = paint;
-    return std::move(result);
+    return std::make_unique<LineLayer>(*this);
 }
 
-void LineLayer::parseLayout(const JSVal& value) {
+void LineLayer::parseLayout(const JSValue& value) {
     layout.cap.parse("line-cap", value);
     layout.join.parse("line-join", value);
     layout.miterLimit.parse("line-miter-limit", value);
     layout.roundLimit.parse("line-round-limit", value);
 }
 
-void LineLayer::parsePaints(const JSVal& layer) {
+void LineLayer::parsePaints(const JSValue& layer) {
     paint.opacity.parse("line-opacity", layer);
     paint.color.parse("line-color", layer);
     paint.translate.parse("line-translate", layer);

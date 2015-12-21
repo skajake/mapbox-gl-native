@@ -4,8 +4,16 @@
 #import <mbgl/util/default_styles.hpp>
 
 #import <CoreLocation/CoreLocation.h>
+#import <OpenGLES/ES2/gl.h>
 
 static UIColor *const kTintColor = [UIColor colorWithRed:0.120 green:0.550 blue:0.670 alpha:1.000];
+
+static const CLLocationCoordinate2D WorldTourDestinations[] = {
+    { 38.9131982, -77.0325453144239 },
+    { 37.7757368, -122.4135302 },
+    { 12.9810816, 77.6368034 },
+    { -13.15589555, -74.2178961777998 },
+};
 
 @interface MBXViewController () <UIActionSheetDelegate, MGLMapViewDelegate>
 
@@ -15,6 +23,10 @@ static UIColor *const kTintColor = [UIColor colorWithRed:0.120 green:0.550 blue:
 @end
 
 @implementation MBXViewController
+{
+    BOOL _isTouringWorld;
+    BOOL _isShowingCustomStyleLayer;
+}
 
 #pragma mark - Setup
 
@@ -138,7 +150,9 @@ static UIColor *const kTintColor = [UIColor colorWithRed:0.120 green:0.550 blue:
                                                                 @"Add 1,000 Points",
                                                                 @"Add 10,000 Points",
                                                                 @"Add Test Shapes",
+                                                                @"Start World Tour",
                                                                 @"Remove Annotations",
+                                                                @"Toggle Custom Style Layer",
                                                                 nil];
 
     [sheet showFromBarButtonItem:self.navigationItem.leftBarButtonItem animated:YES];
@@ -243,7 +257,22 @@ static UIColor *const kTintColor = [UIColor colorWithRed:0.120 green:0.550 blue:
     }
     else if (buttonIndex == actionSheet.firstOtherButtonIndex + 8)
     {
+        [self startWorldTour:actionSheet];
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 9)
+    {
         [self.mapView removeAnnotations:self.mapView.annotations];
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 10)
+    {
+        if (_isShowingCustomStyleLayer)
+        {
+            [self removeCustomStyleLayer];
+        }
+        else
+        {
+            [self insertCustomStyleLayer];
+        }
     }
 }
 
@@ -285,6 +314,67 @@ static UIColor *const kTintColor = [UIColor colorWithRed:0.120 green:0.550 blue:
             });
         }
     });
+}
+
+- (void)insertCustomStyleLayer
+{
+    _isShowingCustomStyleLayer = YES;
+
+    static const GLchar *vertexShaderSource = "attribute vec2 a_pos; void main() { gl_Position = vec4(a_pos, 0, 1); }";
+    static const GLchar *fragmentShaderSource = "void main() { gl_FragColor = vec4(0, 1, 0, 1); }";
+    
+    __block GLuint program = 0;
+    __block GLuint vertexShader = 0;
+    __block GLuint fragmentShader = 0;
+    __block GLuint buffer = 0;
+    __block GLuint a_pos = 0;
+    [self.mapView insertCustomStyleLayerWithIdentifier:@"mbx-custom" preparationHandler:^{
+        program = glCreateProgram();
+        vertexShader = glCreateShader(GL_VERTEX_SHADER);
+        fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+        
+        glShaderSource(vertexShader, 1, &vertexShaderSource, nullptr);
+        glCompileShader(vertexShader);
+        glAttachShader(program, vertexShader);
+        glShaderSource(fragmentShader, 1, &fragmentShaderSource, nullptr);
+        glCompileShader(fragmentShader);
+        glAttachShader(program, fragmentShader);
+        glLinkProgram(program);
+        a_pos = glGetAttribLocation(program, "a_pos");
+        
+        GLfloat background[] = { -1,-1, 1,-1, -1,1, 1,1 };
+        glGenBuffers(1, &buffer);
+        glBindBuffer(GL_ARRAY_BUFFER, buffer);
+        glBufferData(GL_ARRAY_BUFFER, 8 * sizeof(GLfloat), background, GL_STATIC_DRAW);
+    } drawingHandler:^(__unused CGSize size,
+                       __unused CLLocationCoordinate2D centerCoordinate,
+                       __unused double zoomLevel,
+                       __unused CLLocationDirection direction,
+                       __unused CGFloat pitch,
+                       __unused CGFloat perspectiveSkew) {
+        glUseProgram(program);
+        glBindBuffer(GL_ARRAY_BUFFER, buffer);
+        glEnableVertexAttribArray(a_pos);
+        glVertexAttribPointer(a_pos, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+        glDisable(GL_STENCIL_TEST);
+        glDisable(GL_DEPTH_TEST);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    } completionHandler:^{
+        if (program) {
+            glDeleteBuffers(1, &buffer);
+            glDetachShader(program, vertexShader);
+            glDetachShader(program, fragmentShader);
+            glDeleteShader(vertexShader);
+            glDeleteShader(fragmentShader);
+            glDeleteProgram(program);
+        }
+    } belowStyleLayerWithIdentifier:@"housenum-label"];
+}
+
+- (void)removeCustomStyleLayer
+{
+    _isShowingCustomStyleLayer = NO;
+    [self.mapView removeCustomStyleLayerWithIdentifier:@"mbx-custom"];
 }
 
 - (void)handleLongPress:(UILongPressGestureRecognizer *)longPress
@@ -332,6 +422,46 @@ static UIColor *const kTintColor = [UIColor colorWithRed:0.120 green:0.550 blue:
     self.mapView.userTrackingMode = nextMode;
 }
 
+- (IBAction)startWorldTour:(__unused id)sender
+{
+    _isTouringWorld = YES;
+    
+    [self.mapView removeAnnotations:self.mapView.annotations];
+    NSUInteger numberOfAnnotations = sizeof(WorldTourDestinations) / sizeof(WorldTourDestinations[0]);
+    NSMutableArray *annotations = [NSMutableArray arrayWithCapacity:numberOfAnnotations];
+    for (NSUInteger i = 0; i < numberOfAnnotations; i++)
+    {
+        MGLPointAnnotation *annotation = [[MGLPointAnnotation alloc] init];
+        annotation.coordinate = WorldTourDestinations[i];
+        [annotations addObject:annotation];
+    }
+    [self.mapView addAnnotations:annotations];
+    [self continueWorldTourWithRemainingAnnotations:annotations];
+}
+
+- (void)continueWorldTourWithRemainingAnnotations:(NS_MUTABLE_ARRAY_OF(MGLPointAnnotation *) *)annotations
+{
+    MGLPointAnnotation *nextAnnotation = annotations.firstObject;
+    if (!nextAnnotation || !_isTouringWorld)
+    {
+        _isTouringWorld = NO;
+        return;
+    }
+    
+    [annotations removeObjectAtIndex:0];
+    MGLMapCamera *camera = [MGLMapCamera cameraLookingAtCenterCoordinate:nextAnnotation.coordinate
+                                                            fromDistance:10
+                                                                   pitch:arc4random_uniform(60)
+                                                                 heading:arc4random_uniform(360)];
+    __weak MBXViewController *weakSelf = self;
+    [self.mapView flyToCamera:camera completionHandler:^{
+        MBXViewController *strongSelf = weakSelf;
+        [strongSelf performSelector:@selector(continueWorldTourWithRemainingAnnotations:)
+                         withObject:annotations
+                         afterDelay:2];
+    }];
+}
+
 #pragma mark - Destruction
 
 - (void)dealloc
@@ -348,6 +478,7 @@ static UIColor *const kTintColor = [UIColor colorWithRed:0.120 green:0.550 blue:
     if ([annotation.title isEqualToString:@"Dropped Marker"]) return nil; // use default marker
 
     NSString *title = [(MGLPointAnnotation *)annotation title];
+    if (!title.length) return nil;
     NSString *lastTwoCharacters = [title substringFromIndex:title.length - 2];
 
     UIColor *color;

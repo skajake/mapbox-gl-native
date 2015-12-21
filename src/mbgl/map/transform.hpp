@@ -26,6 +26,9 @@ public:
 
     void jumpTo(const CameraOptions&);
     void easeTo(const CameraOptions&);
+    /** Smoothly zoom out, pan, and zoom back into the given camera along a
+        great circle, as though the viewer is aboard a supersonic jetcopter. */
+    void flyTo(const CameraOptions&);
 
     // Position
     void moveBy(const PrecisionPoint&, const Duration& = Duration::zero());
@@ -50,6 +53,10 @@ public:
     // Pitch
     void setPitch(double pitch, const Duration& = Duration::zero());
     double getPitch() const;
+
+    // North Orientation
+    void setNorthOrientation(NorthOrientation);
+    NorthOrientation getNorthOrientation() const;
 
     // Transitions
     bool inTransition() const;

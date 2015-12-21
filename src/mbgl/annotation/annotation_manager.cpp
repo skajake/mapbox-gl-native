@@ -120,8 +120,6 @@ void AnnotationManager::updateStyle(Style& style) {
 
         std::unique_ptr<SymbolLayer> layer = std::make_unique<SymbolLayer>();
         layer->id = PointLayerID;
-        layer->type = StyleLayerType::Symbol;
-
         layer->source = SourceID;
         layer->sourceLayer = PointLayerID;
         layer->layout.icon.image = std::string("{sprite}");
@@ -159,6 +157,11 @@ void AnnotationManager::removeTileMonitor(AnnotationTileMonitor& monitor) {
 
 void AnnotationManager::addIcon(const std::string& name, std::shared_ptr<const SpriteImage> sprite) {
     spriteStore.setSprite(name, sprite);
+    spriteAtlas.updateDirty();
+}
+    
+void AnnotationManager::removeIcon(const std::string& name) {
+    spriteStore.removeSprite(name);
     spriteAtlas.updateDirty();
 }
 

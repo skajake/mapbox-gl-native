@@ -1,24 +1,13 @@
 #ifndef MBGL_MAP_SOURCE
 #define MBGL_MAP_SOURCE
 
-#include <mbgl/map/tile_id.hpp>
-#include <mbgl/map/tile_data.hpp>
 #include <mbgl/map/tile_cache.hpp>
-#include <mbgl/style/types.hpp>
+#include <mbgl/map/source_info.hpp>
 
-#include <mbgl/util/noncopyable.hpp>
 #include <mbgl/util/mat4.hpp>
-#include <mbgl/util/ptr.hpp>
-#include <mbgl/util/chrono.hpp>
-#include <mbgl/util/constants.hpp>
 
-#include <rapidjson/document.h>
-
-#include <cstdint>
 #include <forward_list>
-#include <iosfwd>
 #include <map>
-#include <unordered_set>
 
 namespace mbgl {
 
@@ -29,23 +18,6 @@ class TransformState;
 class Tile;
 struct ClipID;
 struct box;
-
-class SourceInfo : private util::noncopyable {
-public:
-    SourceType type = SourceType::Vector;
-    std::string url;
-    std::vector<std::string> tiles;
-    uint16_t tile_size = util::tileSize;
-    uint16_t min_zoom = 0;
-    uint16_t max_zoom = 22;
-    std::string attribution;
-    std::array<float, 3> center = {{0, 0, 0}};
-    std::array<float, 4> bounds = {{-180, -90, 180, 90}};
-    std::string source_id = "";
-
-    void parseTileJSONProperties(const rapidjson::Value&);
-    std::string tileURL(const TileID& id, float pixelRatio) const;
-};
 
 class Source : private util::noncopyable {
 public:
@@ -63,7 +35,9 @@ public:
     Source();
     ~Source();
 
+    bool loaded = false;
     void load();
+    bool isLoading() const;
     bool isLoaded() const;
 
     // Request or parse all the tiles relevant for the "TransformState". This method
@@ -86,7 +60,7 @@ public:
     void dumpDebugLogs() const;
 
     SourceInfo info;
-    bool enabled;
+    bool enabled = false;
 
 private:
     void tileLoadingCompleteCallback(const TileID&, const TransformState&, bool collisionDebug);
@@ -108,7 +82,6 @@ private:
 
     double getZoom(const TransformState &state) const;
 
-    bool loaded = false;
 
     // Stores the time when this source was most recently updated.
     TimePoint updated = TimePoint::min();

@@ -8,21 +8,21 @@ namespace mbgl {
 
 class FillPaintProperties {
 public:
-    PaintProperty<bool> antialias = true;
-    PaintProperty<float> opacity = 1.0f;
-    PaintProperty<Color> color = { {{ 0, 0, 0, 1 }} };
-    PaintProperty<Color> outlineColor = { {{ 0, 0, 0, -1 }} };
-    PaintProperty<std::array<float, 2>> translate = { {{ 0, 0 }} };
-    PaintProperty<TranslateAnchorType> translateAnchor = TranslateAnchorType::Map;
-    PaintProperty<std::string, Faded<std::string>> pattern = { "" };
+    PaintProperty<bool> antialias { true };
+    PaintProperty<float> opacity { 1.0f };
+    PaintProperty<Color> color { {{ 0, 0, 0, 1 }} };
+    PaintProperty<Color> outlineColor { {{ 0, 0, 0, -1 }} };
+    PaintProperty<std::array<float, 2>> translate { {{ 0, 0 }} };
+    PaintProperty<TranslateAnchorType> translateAnchor { TranslateAnchorType::Map };
+    PaintProperty<std::string, Faded<std::string>> pattern { "" };
 };
 
 class FillLayer : public StyleLayer {
 public:
     std::unique_ptr<StyleLayer> clone() const override;
 
-    void parseLayout(const JSVal&) override {};
-    void parsePaints(const JSVal&) override;
+    void parseLayout(const JSValue&) override {};
+    void parsePaints(const JSValue&) override;
 
     void cascade(const StyleCascadeParameters&) override;
     bool recalculate(const StyleCalculationParameters&) override;

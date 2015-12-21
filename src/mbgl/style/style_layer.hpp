@@ -5,8 +5,7 @@
 #include <mbgl/style/filter_expression.hpp>
 #include <mbgl/renderer/render_pass.hpp>
 #include <mbgl/util/noncopyable.hpp>
-
-#include <rapidjson/document.h>
+#include <mbgl/util/rapidjson.hpp>
 
 #include <memory>
 #include <string>
@@ -19,17 +18,22 @@ class StyleCalculationParameters;
 class StyleBucketParameters;
 class Bucket;
 
-using JSVal = rapidjson::Value;
-
-class StyleLayer : public util::noncopyable {
+class StyleLayer {
 public:
-    static std::unique_ptr<StyleLayer> create(StyleLayerType);
-    virtual std::unique_ptr<StyleLayer> clone() const = 0;
-
     virtual ~StyleLayer() = default;
 
-    virtual void parseLayout(const JSVal& value) = 0;
-    virtual void parsePaints(const JSVal& value) = 0;
+    // Check whether this layer is of the given subtype.
+    template <class T> bool is() const { return dynamic_cast<const T*>(this); }
+
+    // Dynamically cast this layer to the given subtype.
+    template <class T>       T* as()       { return dynamic_cast<      T*>(this); }
+    template <class T> const T* as() const { return dynamic_cast<const T*>(this); }
+
+    // Create a copy of this layer.
+    virtual std::unique_ptr<StyleLayer> clone() const = 0;
+
+    virtual void parseLayout(const JSValue& value) = 0;
+    virtual void parsePaints(const JSValue& value) = 0;
 
     // If the layer has a ref, the ref. Otherwise, the id.
     const std::string& bucketName() const;
@@ -46,8 +50,10 @@ public:
     // Checks whether this layer needs to be rendered in the given render pass.
     bool hasRenderPass(RenderPass) const;
 
+    // Checks whether this layer can be rendered.
+    bool needsRendering() const;
+
 public:
-    StyleLayerType type;
     std::string id;
     std::string ref;
     std::string source;
@@ -58,11 +64,13 @@ public:
     VisibilityType visibility = VisibilityType::Visible;
 
 protected:
+    StyleLayer() = default;
+    StyleLayer(const StyleLayer&) = default;
+    StyleLayer& operator=(const StyleLayer&) = delete;
+
     // Stores what render passes this layer is currently enabled for. This depends on the
     // evaluated StyleProperties object and is updated accordingly.
     RenderPass passes = RenderPass::None;
-
-    void copy(const StyleLayer& source);
 };
 
 } // namespace mbgl

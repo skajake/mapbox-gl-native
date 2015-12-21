@@ -218,6 +218,33 @@ IB_DESIGNABLE
 *   @param completion The block to execute after the animation finishes. */
 - (void)setCamera:(MGLMapCamera *)camera withDuration:(NSTimeInterval)duration animationTimingFunction:(nullable CAMediaTimingFunction *)function completionHandler:(nullable void (^)(void))completion;
 
+/** Moves the viewpoint to a different location using a transition animation that evokes powered flight and a default duration based on the length of the flight path.
+*
+*   The transition animation seamlessly incorporates zooming and panning to help the user find his or her bearings even after traversing a great distance.
+*
+*   @param camera The new viewpoint.
+*   @param completion The block to execute after the animation finishes. */
+- (void)flyToCamera:(MGLMapCamera *)camera completionHandler:(nullable void (^)(void))completion;
+
+/** Moves the viewpoint to a different location using a transition animation that evokes powered flight and an optional transition duration.
+*
+*   The transition animation seamlessly incorporates zooming and panning to help the user find his or her bearings even after traversing a great distance.
+*
+*   @param camera The new viewpoint.
+*   @param duration The amount of time, measured in seconds, that the transition animation should take. Specify `0` to jump to the new viewpoint instantaneously. Specify a negative value to use the default duration, which is based on the length of the flight path.
+*   @param completion The block to execute after the animation finishes. */
+- (void)flyToCamera:(MGLMapCamera *)camera withDuration:(NSTimeInterval)duration completionHandler:(nullable void (^)(void))completion;
+
+/** Moves the viewpoint to a different location using a transition animation that evokes powered flight and an optional transition duration and peak altitude.
+*
+*   The transition animation seamlessly incorporates zooming and panning to help the user find his or her bearings even after traversing a great distance.
+*
+*   @param camera The new viewpoint.
+*   @param duration The amount of time, measured in seconds, that the transition animation should take. Specify `0` to jump to the new viewpoint instantaneously. Specify a negative value to use the default duration, which is based on the length of the flight path.
+*   @param peakAltitude The altitude, measured in meters, at the midpoint of the animation. The value of this parameter is ignored if it is negative or if the animation transition resulting from a similar call to `-setCamera:animated:` would have a midpoint at a higher altitude.
+*   @param completion The block to execute after the animation finishes. */
+- (void)flyToCamera:(MGLMapCamera *)camera withDuration:(NSTimeInterval)duration peakAltitude:(CLLocationDistance)peakAltitude completionHandler:(nullable void (^)(void))completion;
+
 #pragma mark - Converting Map Coordinates
 
 /** @name Converting Map Coordinates */
@@ -258,9 +285,6 @@ IB_DESIGNABLE
 *
 *   To display the default style, set this property to `nil`. */
 @property (nonatomic, null_resettable) NSURL *styleURL;
-
-/* Discourage programmatic usage of this IB-only property. Interface Builder skips over this declaration because it is unable to parse attributes. See the real declaration in MGLMapView+IBAdditions.h. */
-@property (nonatomic, nullable) IBInspectable NSString *styleURL__ __attribute__((unavailable("styleURL__ is for use within Interface Builder only. Use styleURL in code.")));
 
 /** Currently active style classes, represented as an array of string identifiers. */
 @property (nonatomic) NS_ARRAY_OF(NSString *) *styleClasses;

@@ -7,6 +7,7 @@
 #include <mbgl/util/unitbezier.hpp>
 #include <mbgl/util/interpolate.hpp>
 #include <mbgl/util/tile_coordinate.hpp>
+#include <mbgl/platform/log.hpp>
 #include <mbgl/platform/platform.hpp>
 
 #include <cstdio>
@@ -61,12 +62,22 @@ bool Transform::resize(const std::array<uint16_t, 2> size) {
 
 #pragma mark - Position
 
+/*
+ * Change any combination of center, zoom, bearing, and pitch, without
+ * a transition. The map will retain the current values for any options
+ * not included in `options`.
+ */
 void Transform::jumpTo(const CameraOptions& options) {
     CameraOptions jumpOptions(options);
     jumpOptions.duration.reset();
     easeTo(jumpOptions);
 }
 
+/*
+ * Change any combination of center, zoom, bearing, and pitch, with a smooth animation
+ * between old and new values. The map will retain the current values for any options
+ * not included in `options`.
+ */
 void Transform::easeTo(const CameraOptions& options) {
     CameraOptions easeOptions(options);
     LatLng latLng = easeOptions.center ? *easeOptions.center : getLatLng();
@@ -76,14 +87,14 @@ void Transform::easeTo(const CameraOptions& options) {
         return;
     }
 
-    double new_scale = std::pow(2.0, zoom);
+    double new_scale = state.zoomScale(zoom);
 
     const double s = new_scale * util::tileSize;
     state.Bc = s / 360;
     state.Cc = s / util::M2PI;
 
     const double m = 1 - 1e-15;
-    const double f = std::fmin(std::fmax(std::sin(util::DEG2RAD * latLng.latitude), -m), m);
+    const double f = ::fmin(::fmax(std::sin(util::DEG2RAD * latLng.latitude), -m), m);
 
     double xn = -latLng.longitude * state.Bc;
     double yn = 0.5 * state.Cc * std::log((1 + f) / (1 - f));
@@ -137,9 +148,9 @@ void Transform::setLatLng(const LatLng& latLng, const PrecisionPoint& point, con
     float rowDiff = coordAtPoint.row - coord.row;
 
     auto newLatLng = state.coordinateToLatLng({
-            coordCenter.column - columnDiff,
-            coordCenter.row - rowDiff,
-            coordCenter.zoom
+        coordCenter.column - columnDiff,
+        coordCenter.row - rowDiff,
+        coordCenter.zoom
     });
 
     setLatLng(newLatLng, duration);
@@ -245,6 +256,7 @@ void Transform::_easeTo(const CameraOptions& options, double new_scale, double n
     double angle = _normalizeAngle(new_angle, state.angle);
     state.angle = _normalizeAngle(state.angle, angle);
     double pitch = easeOptions.pitch ? *easeOptions.pitch : state.pitch;
+    pitch = util::clamp(pitch, 0., util::PITCH_MAX);
 
     if (!easeOptions.duration) {
         easeOptions.duration = Duration::zero();
@@ -312,6 +324,202 @@ void Transform::_easeTo(const CameraOptions& options, double new_scale, double n
             }, *easeOptions.duration);
     }
 }
+
+/** This method implements an “optimal path” animation, as detailed in:
+    
+    Van Wijk, Jarke J.; Nuij, Wim A. A. “Smooth and efficient zooming and
+        panning.” INFOVIS ’03. pp. 15–22.
+        <https://www.win.tue.nl/~vanwijk/zoompan.pdf#page=5>.
+    
+    Where applicable, local variable documentation begins with the associated
+    variable or function in van Wijk (2003). */
+void Transform::flyTo(const CameraOptions &options) {
+    CameraOptions flyOptions(options);
+    LatLng latLng = options.center ? *options.center : getLatLng();
+    LatLng startLatLng = getLatLng();
+    double zoom = flyOptions.zoom ? *flyOptions.zoom : getZoom();
+    double angle = flyOptions.angle ? *flyOptions.angle : getAngle();
+    double pitch = flyOptions.pitch ? *flyOptions.pitch : getPitch();
+
+    if (std::isnan(latLng.latitude) || std::isnan(latLng.longitude) || std::isnan(zoom)) {
+        return;
+    }
+    
+    // If a path crossing the antemeridian would be shorter, extend the final
+    // coordinate so that interpolating between the two endpoints will cross it.
+    if (std::abs(startLatLng.longitude) + std::abs(latLng.longitude) > 180) {
+        if (startLatLng.longitude > 0 && latLng.longitude < 0) {
+            latLng.longitude += 360;
+        } else if (startLatLng.longitude < 0 && latLng.longitude > 0) {
+            latLng.longitude -= 360;
+        }
+    }
+    
+    const PrecisionPoint startPoint = {
+        state.lngX(startLatLng.longitude),
+        state.latY(startLatLng.latitude),
+    };
+    const PrecisionPoint endPoint = {
+        state.lngX(latLng.longitude),
+        state.latY(latLng.latitude),
+    };
+    
+    zoom = util::clamp(zoom, state.getMinZoom(), state.getMaxZoom());
+    
+    // Minimize rotation by taking the shorter path around the circle.
+    double normalizedAngle = _normalizeAngle(angle, state.angle);
+    state.angle = _normalizeAngle(state.angle, normalizedAngle);
+    
+    pitch = util::clamp(pitch, 0., util::PITCH_MAX);
+    
+    const double startZoom = state.scaleZoom(state.scale);
+    const double startAngle = state.angle;
+    const double startPitch = state.pitch;
+    
+    /// w₀: Initial visible span, measured in pixels at the initial scale.
+    /// Known henceforth as a <i>screenful</i>.
+    double w0 = std::max(state.width, state.height);
+    /// w₁: Final visible span, measured in pixels with respect to the initial
+    /// scale.
+    double w1 = w0 / state.zoomScale(zoom - startZoom);
+    /// Length of the flight path as projected onto the ground plane, measured
+    /// in pixels from the world image origin at the initial scale.
+    double u1 = ::hypot((endPoint - startPoint).x, (endPoint - startPoint).y);
+    
+    /** ρ: The relative amount of zooming that takes place along the flight
+        path. A high value maximizes zooming for an exaggerated animation, while
+        a low value minimizes zooming for something closer to easeTo().
+        
+        1.42 is the average value selected by participants in the user study in
+        van Wijk (2003). A value of 6<sup>¼</sup> would be equivalent to the
+        root mean squared average velocity, V<sub>RMS</sub>. A value of 1 would
+        produce a circular motion. */
+    double rho = 1.42;
+    if (flyOptions.minZoom) {
+        double minZoom = util::min(*flyOptions.minZoom, startZoom, zoom);
+        minZoom = util::clamp(minZoom, state.getMinZoom(), state.getMaxZoom());
+        /// w<sub>m</sub>: Maximum visible span, measured in pixels with respect
+        /// to the initial scale.
+        double wMax = w0 / state.zoomScale(minZoom - startZoom);
+        rho = std::sqrt(wMax / u1 * 2);
+    }
+    /// ρ²
+    double rho2 = rho * rho;
+    
+    /** rᵢ: Returns the zoom-out factor at one end of the animation.
+        
+        @param i 0 for the ascent or 1 for the descent. */
+    auto r = [=](double i) {
+        /// bᵢ
+        double b = (w1 * w1 - w0 * w0 + (i ? -1 : 1) * rho2 * rho2 * u1 * u1) / (2 * (i ? w1 : w0) * rho2 * u1);
+        return std::log(std::sqrt(b * b + 1) - b);
+    };
+    
+    // When u₀ = u₁, the optimal path doesn’t require both ascent and descent.
+    bool isClose = std::abs(u1) < 0.000001;
+    // Perform a more or less instantaneous transition if the path is too short.
+    if (isClose && std::abs(w0 - w1) < 0.000001) {
+        easeTo(options);
+        return;
+    }
+    
+    /// r₀: Zoom-out factor during ascent.
+    double r0 = r(0);
+    /** w(s): Returns the visible span on the ground, measured in pixels with
+        respect to the initial scale.
+        
+        Assumes an angular field of view of 2 arctan ½ ≈ 53°. */
+    auto w = [=](double s) {
+        return (isClose ? std::exp((w1 < w0 ? -1 : 1) * rho * s)
+                : (std::cosh(r0) / std::cosh(r0 + rho * s)));
+    };
+    /// u(s): Returns the distance along the flight path as projected onto the
+    /// ground plane, measured in pixels from the world image origin at the
+    /// initial scale.
+    auto u = [=](double s) {
+        return (isClose ? 0.
+                : (w0 * (std::cosh(r0) * std::tanh(r0 + rho * s) - std::sinh(r0)) / rho2 / u1));
+    };
+    /// S: Total length of the flight path, measured in ρ-screenfuls.
+    double S = (isClose ? (std::abs(std::log(w1 / w0)) / rho)
+                : ((r(1) - r0) / rho));
+    
+    Duration duration;
+    if (flyOptions.duration) {
+        duration = *flyOptions.duration;
+    } else {
+        /// V: Average velocity, measured in ρ-screenfuls per second.
+        double velocity = 1.2;
+        if (flyOptions.velocity) {
+            velocity = *flyOptions.velocity / rho;
+        }
+        duration = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+            std::chrono::duration<double, std::chrono::seconds::period>(S / velocity));
+    }
+    if (duration == Duration::zero()) {
+        // Perform an instantaneous transition.
+        jumpTo(options);
+        return;
+    }
+    
+    view.notifyMapChange(MapChangeRegionWillChangeAnimated);
+    
+    const double startWorldSize = state.worldSize();
+    state.Bc = startWorldSize / 360;
+    state.Cc = startWorldSize / util::M2PI;
+    
+    state.panning = true;
+    state.scaling = true;
+    state.rotating = angle != startAngle;
+    
+    startTransition(
+        [=](double t) {
+            util::UnitBezier ease = flyOptions.easing ? *flyOptions.easing : util::UnitBezier(0, 0, 0.25, 1);
+            return ease.solve(t, 0.001);
+        },
+        [=](double k) {
+            /// s: The distance traveled along the flight path, measured in
+            /// ρ-screenfuls.
+            double s = k * S;
+            double us = u(s);
+            
+            // Calculate the current point and zoom level along the flight path.
+            PrecisionPoint framePoint = startPoint + (endPoint - startPoint) * us;
+            double frameZoom = startZoom + state.scaleZoom(1 / w(s));
+            
+            // Convert to geographic coordinates and set the new viewpoint.
+            LatLng frameLatLng = {
+                state.yLat(framePoint.y, startWorldSize),
+                state.xLng(framePoint.x, startWorldSize),
+            };
+            state.setLatLngZoom(frameLatLng, frameZoom);
+            
+            if (angle != startAngle) {
+                state.angle = util::wrap(util::interpolate(startAngle, normalizedAngle, k), -M_PI, M_PI);
+            }
+            if (pitch != startPitch) {
+                state.pitch = util::interpolate(startPitch, pitch, k);
+            }
+            
+            // At k = 1.0, a DidChangeAnimated notification should be sent from finish().
+            if (k < 1.0) {
+                if (options.transitionFrameFn) {
+                    options.transitionFrameFn(k);
+                }
+                view.notifyMapChange(MapChangeRegionIsChanging);
+            }
+            return Update::Zoom;
+        },
+        [=] {
+            state.panning = false;
+            state.scaling = false;
+            state.rotating = false;
+            if (options.transitionFinishFn) {
+                options.transitionFinishFn();
+            }
+            view.notifyMapChange(MapChangeRegionDidChangeAnimated);
+        }, duration);
+};
 
 #pragma mark - Angle
 
@@ -395,6 +603,17 @@ void Transform::setPitch(double pitch, const Duration& duration) {
 
 double Transform::getPitch() const {
     return state.pitch;
+}
+
+#pragma mark - North Orientation
+
+void Transform::setNorthOrientation(NorthOrientation orientation) {
+    state.orientation = orientation;
+    state.constrain(state.scale, state.x, state.y);
+}
+
+NorthOrientation Transform::getNorthOrientation() const {
+    return state.getNorthOrientation();
 }
 
 #pragma mark - Transition
