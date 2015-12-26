@@ -2,6 +2,13 @@
 
 ## Android master
 
+## 3.0.0
+
+* Added Camera API ([#3244](https://github.com/mapbox/mapbox-gl-native/issues/3244))
+* Custom Layer Support ([#3248](https://github.com/mapbox/mapbox-gl-native/issues/3348))
+* Reverse Tilt Gesutre Detection ([#3245](https://github.com/mapbox/mapbox-gl-native/issues/3245))
+* Decoupled Location Provider ([#2954](https://github.com/mapbox/mapbox-gl-native/issues/2954))
+
 ## 2.3.0
 
 * Added Tilt / Pitch Support ([#2805](https://github.com/mapbox/mapbox-gl-native/issues/2805))
@@ -37,6 +44,8 @@ Known issues:
 - A new method on MGLMapView, `-flyToCamera:withDuration:completionHandler:`, lets you transition between viewpoints along an arc as if by aircraft. ([#3171](https://github.com/mapbox/mapbox-gl-native/pull/3171), [#3301](https://github.com/mapbox/mapbox-gl-native/pull/3301))
 - MGLMapCamera’s `altitude` values now match those of MKMapCamera. ([#3362](https://github.com/mapbox/mapbox-gl-native/pull/3362))
 - The user dot’s callout view is now centered above the user dot. It was previously offset slightly to the left. ([#3261](https://github.com/mapbox/mapbox-gl-native/pull/3261))
+- Fixed an issue with small map views not properly fitting annotations within bounds. (#[3407](https://github.com/mapbox/mapbox-gl-native/pull/3407))
+- The map will now snap to north. ([#3403](https://github.com/mapbox/mapbox-gl-native/pull/3403))
 
 ## iOS 3.0.1
 

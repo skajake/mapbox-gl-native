@@ -56,6 +56,7 @@ import com.almeros.android.multitouch.gesturedetectors.ShoveGestureDetector;
 import com.almeros.android.multitouch.gesturedetectors.TwoFingerGestureDetector;
 import com.mapbox.mapboxsdk.R;
 import com.mapbox.mapboxsdk.annotations.Annotation;
+import com.mapbox.mapboxsdk.annotations.Icon;
 import com.mapbox.mapboxsdk.annotations.InfoWindow;
 import com.mapbox.mapboxsdk.annotations.Marker;
 import com.mapbox.mapboxsdk.annotations.MarkerOptions;
@@ -63,16 +64,16 @@ import com.mapbox.mapboxsdk.annotations.Polygon;
 import com.mapbox.mapboxsdk.annotations.PolygonOptions;
 import com.mapbox.mapboxsdk.annotations.Polyline;
 import com.mapbox.mapboxsdk.annotations.PolylineOptions;
-import com.mapbox.mapboxsdk.annotations.Sprite;
-import com.mapbox.mapboxsdk.annotations.SpriteFactory;
+import com.mapbox.mapboxsdk.annotations.IconFactory;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdate;
+import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.constants.MathConstants;
 import com.mapbox.mapboxsdk.constants.MyBearingTracking;
 import com.mapbox.mapboxsdk.constants.MyLocationTracking;
 import com.mapbox.mapboxsdk.constants.Style;
+import com.mapbox.mapboxsdk.exceptions.IconBitmapChangedException;
 import com.mapbox.mapboxsdk.exceptions.InvalidAccessTokenException;
-import com.mapbox.mapboxsdk.exceptions.SpriteBitmapChangedException;
 import com.mapbox.mapboxsdk.geometry.BoundingBox;
 import com.mapbox.mapboxsdk.geometry.CoordinateBounds;
 import com.mapbox.mapboxsdk.geometry.LatLng;
@@ -223,7 +224,7 @@ public final class MapView extends FrameLayout {
     private List<Marker> mSelectedMarkers = new ArrayList<>();
     private List<InfoWindow> mInfoWindows = new ArrayList<>();
     private InfoWindowAdapter mInfoWindowAdapter;
-    private List<Sprite> mSprites = new ArrayList<>();
+    private List<Icon> mIcons = new ArrayList<>();
 
     // Used for the Mapbox Logo
     private ImageView mLogoView;
@@ -907,7 +908,7 @@ public final class MapView extends FrameLayout {
             @Override
             public void onMapChanged(@MapChange int change) {
                 if (change == DID_FINISH_LOADING_MAP) {
-                    reloadSprites();
+                    reloadIcons();
                     reloadMarkers();
                     adjustTopOffsetPixels();
                 }
@@ -1084,9 +1085,16 @@ public final class MapView extends FrameLayout {
             Log.w(TAG, "centerCoordinate was null, so just returning");
             return;
         }
-        long duration = animated ? ANIMATION_DURATION : 0;
-        mNativeMapView.cancelTransitions();
-        mNativeMapView.setLatLng(centerCoordinate, duration);
+
+        if (animated) {
+            CameraPosition cameraPosition = new CameraPosition.Builder(getCameraPosition())
+                    .target(centerCoordinate)
+                    .build();
+            animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition),
+                    (int) ANIMATION_DURATION, null);
+        } else {
+            jumpTo(mNativeMapView.getBearing(), centerCoordinate, mNativeMapView.getPitch(), mNativeMapView.getZoom());
+        }
     }
 
 
@@ -1494,7 +1502,7 @@ public final class MapView extends FrameLayout {
      */
     @UiThread
     public final void animateCamera (CameraUpdate update) {
-        animateCamera(update, 0, null);
+        animateCamera(update, 1, null);
     }
 
 
@@ -1507,7 +1515,7 @@ public final class MapView extends FrameLayout {
      */
     @UiThread
     public final void animateCamera (CameraUpdate update, MapView.CancelableCallback callback) {
-        animateCamera(update, 0, callback);
+        animateCamera(update, 1, callback);
     }
 
     /**
@@ -1521,7 +1529,7 @@ public final class MapView extends FrameLayout {
     public final void animateCamera (CameraUpdate update, int durationMs, final MapView.CancelableCallback callback) {
 
         if (update.getTarget() == null) {
-            Log.w(TAG, "animateCamera with null target coordinate passed in.  Will immediatele return without animating camera.");
+            Log.w(TAG, "animateCamera with null target coordinate passed in.  Will immediately return without animating camera.");
             return;
         }
 
@@ -1533,7 +1541,7 @@ public final class MapView extends FrameLayout {
             addOnMapChangedListener(new OnMapChangedListener() {
                 @Override
                 public void onMapChanged(@MapChange int change) {
-                    if (change == REGION_DID_CHANGE_ANIMATED || change == REGION_DID_CHANGE) {
+                    if (change == REGION_DID_CHANGE_ANIMATED) {
                         callback.onFinish();
 
                         // Clean up after self
@@ -1563,15 +1571,95 @@ public final class MapView extends FrameLayout {
             durationNano = TimeUnit.NANOSECONDS.convert(durationMs, TimeUnit.MILLISECONDS);
         }
 
-        if (durationMs == 0) {
-            // Route To `jumpTo`
-            Log.i(TAG, "jumpTo() called with angle = " + angle + "; target = " + update.getTarget() + "; durationNano = " + durationNano + "; Pitch = " + pitch + "; Zoom = " + update.getZoom());
-            jumpTo(angle, update.getTarget(), pitch, zoom);
-        } else {
-            // Use `flyTo`
-            Log.i(TAG, "flyTo() called with angle = " + angle + "; target = " + update.getTarget() + "; durationNano = " + durationNano + "; Pitch = " + pitch + "; Zoom = " + update.getZoom());
-            flyTo(angle, update.getTarget(), durationNano, pitch, zoom);
+        flyTo(angle, update.getTarget(), durationNano, pitch, zoom);
+    }
+
+    /**
+     * Ease the map according to the update with an animation over a specified duration, and calls an optional callback on completion. See CameraUpdateFactory for a set of updates.
+     * If getCameraPosition() is called during the animation, it will return the current location of the camera in flight.
+     * @param update The change that should be applied to the camera.
+     * @param durationMs The duration of the animation in milliseconds. This must be strictly positive, otherwise an IllegalArgumentException will be thrown.
+     * @param callback An optional callback to be notified from the main thread when the animation stops. If the animation stops due to its natural completion, the callback will be notified with onFinish(). If the animation stops due to interruption by a later camera movement or a user gesture, onCancel() will be called. The callback should not attempt to move or animate the camera in its cancellation method. If a callback isn't required, leave it as null.
+     */
+    @UiThread
+    public final void easeCamera(CameraUpdate update, int durationMs, final MapView.CancelableCallback callback) {
+        if (update.getTarget() == null) {
+            Log.w(TAG, "easeCamera with null target coordinate passed in.  Will immediately return without easing camera.");
+            return;
         }
+
+        mNativeMapView.cancelTransitions();
+
+        // Register callbacks early enough
+        if (callback != null) {
+            final MapView view = this;
+            addOnMapChangedListener(new OnMapChangedListener() {
+                @Override
+                public void onMapChanged(@MapChange int change) {
+                    if (change == REGION_DID_CHANGE_ANIMATED) {
+                        callback.onFinish();
+
+                        // Clean up after self
+                        removeOnMapChangedListener(this);
+                    }
+                }
+            });
+        }
+
+        // Convert Degrees To Radians
+        double angle = -1;
+        if (update.getBearing() >= 0) {
+            angle = (-update.getBearing()) * MathConstants.DEG2RAD;
+        }
+        double pitch = -1;
+        if (update.getTilt() >= 0) {
+            double dp = MathUtils.clamp(update.getTilt(), MINIMUM_TILT, MAXIMUM_TILT);
+            pitch = dp * MathConstants.DEG2RAD;
+        }
+        double zoom = -1;
+        if (update.getZoom() >= 0) {
+            zoom = update.getZoom();
+        }
+
+        long durationNano = 0;
+        if (durationMs > 0) {
+            durationNano = TimeUnit.NANOSECONDS.convert(durationMs, TimeUnit.MILLISECONDS);
+        }
+
+        easeTo(angle, update.getTarget(), durationNano, pitch, zoom);
+    }
+
+    /**
+     * Repositions the camera according to the instructions defined in the update.
+     * The move is instantaneous, and a subsequent getCameraPosition() will reflect the new position.
+     * See CameraUpdateFactory for a set of updates.
+     * @param update The change that should be applied to the camera.
+     */
+    @UiThread
+    public final void moveCamera (CameraUpdate update) {
+        if (update.getTarget() == null) {
+            Log.w(TAG, "moveCamera with null target coordinate passed in.  Will immediately return without moving camera.");
+            return;
+        }
+
+        mNativeMapView.cancelTransitions();
+
+        // Convert Degrees To Radians
+        double angle = -1;
+        if (update.getBearing() >= 0) {
+            angle = (-update.getBearing()) * MathConstants.DEG2RAD;
+        }
+        double pitch = -1;
+        if (update.getTilt() >= 0) {
+            double dp = MathUtils.clamp(update.getTilt(), MINIMUM_TILT, MAXIMUM_TILT);
+            pitch = dp * MathConstants.DEG2RAD;
+        }
+        double zoom = -1;
+        if (update.getZoom() >= 0) {
+            zoom = update.getZoom();
+        }
+
+        jumpTo(angle, update.getTarget(), pitch, zoom);
     }
 
     //
@@ -1954,13 +2042,13 @@ public final class MapView extends FrameLayout {
     // Annotations
     //
 
-    public SpriteFactory getSpriteFactory() {
-        return SpriteFactory.getInstance(getContext());
+    public IconFactory getIconFactory() {
+        return IconFactory.getInstance(getContext());
     }
 
-    private void loadSprite(Sprite sprite) {
-        Bitmap bitmap = sprite.getBitmap();
-        String id = sprite.getId();
+    private void loadIcon(Icon icon) {
+        Bitmap bitmap = icon.getBitmap();
+        String id = icon.getId();
         if (bitmap.getConfig() != Bitmap.Config.ARGB_8888) {
             bitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false);
         }
@@ -1980,31 +2068,31 @@ public final class MapView extends FrameLayout {
                 scale, buffer.array());
     }
 
-    private void reloadSprites() {
-        int count = mSprites.size();
+    private void reloadIcons() {
+        int count = mIcons.size();
         for (int i = 0; i < count; i++) {
-            Sprite sprite = mSprites.get(i);
-            loadSprite(sprite);
+            Icon icon = mIcons.get(i);
+            loadIcon(icon);
         }
     }
 
     private Marker prepareMarker(MarkerOptions markerOptions) {
         Marker marker = markerOptions.getMarker();
-        Sprite icon = marker.getIcon();
+        Icon icon = marker.getIcon();
         if (icon == null) {
-            icon = getSpriteFactory().defaultMarker();
+            icon = getIconFactory().defaultMarker();
             marker.setIcon(icon);
         }
-        if (!mSprites.contains(icon)) {
-            mSprites.add(icon);
-            loadSprite(icon);
+        if (!mIcons.contains(icon)) {
+            mIcons.add(icon);
+            loadIcon(icon);
         } else {
-            Sprite oldSprite = mSprites.get(mSprites.indexOf(icon));
-            if (!oldSprite.getBitmap().sameAs(icon.getBitmap())) {
-                throw new SpriteBitmapChangedException();
+            Icon oldIcon = mIcons.get(mIcons.indexOf(icon));
+            if (!oldIcon.getBitmap().sameAs(icon.getBitmap())) {
+                throw new IconBitmapChangedException();
             }
         }
-        marker.setTopOffsetPixels(getTopOffsetPixelsForSprite(icon));
+        marker.setTopOffsetPixels(getTopOffsetPixelsForIcon(icon));
         return marker;
     }
 
@@ -2296,14 +2384,14 @@ public final class MapView extends FrameLayout {
         return new ArrayList<>(annotations);
     }
 
-    private int getTopOffsetPixelsForSprite(Sprite sprite) {
+    private int getTopOffsetPixelsForIcon(Icon icon) {
         // This method will dead lock if map paused. Causes a freeze if you add a marker in an
         // activity's onCreate()
         if (mNativeMapView.isPaused()) {
             return 0;
         }
 
-        return (int) (mNativeMapView.getTopOffsetPixelsForAnnotationSymbol(sprite.getId())
+        return (int) (mNativeMapView.getTopOffsetPixelsForAnnotationSymbol(icon.getId())
                 * mScreenDensity);
     }
 
@@ -2411,7 +2499,7 @@ public final class MapView extends FrameLayout {
      * @param zoom Zoom Level
      */
     @UiThread
-    public void jumpTo(double bearing, LatLng center, double pitch, double zoom) {
+    private void jumpTo(double bearing, LatLng center, double pitch, double zoom) {
         mNativeMapView.jumpTo(bearing, center, pitch, zoom);
     }
 
@@ -2426,7 +2514,7 @@ public final class MapView extends FrameLayout {
      * @param zoom Zoom Level
      */
     @UiThread
-    public void easeTo(double bearing, LatLng center, long duration,  double pitch, double zoom) {
+    private void easeTo(double bearing, LatLng center, long duration,  double pitch, double zoom) {
         mNativeMapView.easeTo(bearing, center, duration, pitch, zoom);
     }
 
@@ -2439,7 +2527,7 @@ public final class MapView extends FrameLayout {
      * @param zoom Zoom Level
      */
     @UiThread
-    public void flyTo(double bearing, LatLng center, long duration, double pitch, double zoom) {
+    private void flyTo(double bearing, LatLng center, long duration, double pitch, double zoom) {
         mNativeMapView.flyTo(bearing, center, duration, pitch, zoom);
     }
 
@@ -2525,7 +2613,7 @@ public final class MapView extends FrameLayout {
             if (annotation instanceof Marker) {
                 Marker marker = (Marker) annotation;
                 marker.setTopOffsetPixels(
-                        getTopOffsetPixelsForSprite(marker.getIcon()));
+                        getTopOffsetPixelsForIcon(marker.getIcon()));
             }
         }
 

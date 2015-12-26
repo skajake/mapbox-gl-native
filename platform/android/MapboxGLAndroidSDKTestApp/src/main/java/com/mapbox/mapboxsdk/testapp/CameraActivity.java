@@ -43,7 +43,7 @@ public class CameraActivity extends AppCompatActivity {
         mMapView.setCompassEnabled(true);
         mMapView.onCreate(savedInstanceState);
 
-        Button cameraButton = (Button) findViewById(R.id.cameraAnimateButton);
+        Button cameraButton = (Button) findViewById(R.id.cameraMoveButton);
         cameraButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -52,11 +52,11 @@ public class CameraActivity extends AppCompatActivity {
                         .zoom(14)                                   // Sets the zoom
                         .tilt(30)                                   // Sets the tilt of the camera to 30 degrees
                         .build();                                   // Creates a CameraPosition from the builder
-                mMapView.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
+                mMapView.moveCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
             }
         });
 
-        Button cameraCallbackButton = (Button) findViewById(R.id.cameraAnimateCallbackButton);
+        Button cameraCallbackButton = (Button) findViewById(R.id.cameraEaseButton);
         cameraCallbackButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -70,24 +70,22 @@ public class CameraActivity extends AppCompatActivity {
                 MapView.CancelableCallback callback = new MapView.CancelableCallback() {
                     @Override
                     public void onCancel() {
-                        // NOTE: This shouldn't appear
-                        Log.i(TAG, "onCancel Callback called.");
-                        Toast.makeText(CameraActivity.this, "onCancel Callback called.", Toast.LENGTH_LONG).show();
+                        Log.i(TAG, "Duration onCancel Callback called.");
+                        Toast.makeText(CameraActivity.this, "Ease onCancel Callback called.", Toast.LENGTH_LONG).show();
                     }
 
                     @Override
                     public void onFinish() {
-                        Log.i(TAG, "onFinish Callback called.");
-                        Toast.makeText(CameraActivity.this, "onFinish Callback called.", Toast.LENGTH_LONG).show();
+                        Log.i(TAG, "Duration onFinish Callback called.");
+                        Toast.makeText(CameraActivity.this, "Ease onFinish Callback called.", Toast.LENGTH_LONG).show();
                     }
                 };
 
-                mMapView.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), callback);
-
+                mMapView.easeCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), 25000, callback);
             }
         });
 
-        Button cameraDurationButton = (Button) findViewById(R.id.cameraAnimateDurationButton);
+        Button cameraDurationButton = (Button) findViewById(R.id.cameraAnimateButton);
         cameraDurationButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {

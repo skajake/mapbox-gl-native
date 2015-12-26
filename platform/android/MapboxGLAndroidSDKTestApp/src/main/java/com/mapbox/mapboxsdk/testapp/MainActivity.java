@@ -23,27 +23,23 @@ import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.TextView;
-
-import com.crashlytics.android.Crashlytics;
 import com.mapbox.mapboxsdk.annotations.Marker;
 import com.mapbox.mapboxsdk.annotations.MarkerOptions;
 import com.mapbox.mapboxsdk.annotations.PolygonOptions;
 import com.mapbox.mapboxsdk.annotations.PolylineOptions;
-import com.mapbox.mapboxsdk.annotations.Sprite;
+import com.mapbox.mapboxsdk.annotations.Icon;
 import com.mapbox.mapboxsdk.constants.MyBearingTracking;
 import com.mapbox.mapboxsdk.constants.MyLocationTracking;
 import com.mapbox.mapboxsdk.constants.Style;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.layers.CustomLayer;
+import com.mapbox.mapboxsdk.testapp.layers.ExampleCustomLayer;
 import com.mapbox.mapboxsdk.testapp.utils.GeoParseUtil;
 import com.mapbox.mapboxsdk.utils.ApiAccess;
 import com.mapbox.mapboxsdk.views.MapView;
-
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
-
-import io.fabric.sdk.android.Fabric;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -93,7 +89,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Fabric.with(this, new Crashlytics());
 
         // Load the layout
         setContentView(R.layout.activity_main);
@@ -532,14 +527,14 @@ public class MainActivity extends AppCompatActivity {
         final MarkerOptions backLot = generateMarker("Back Lot", "The back lot behind my house", null, 38.649441, -121.369064);
         markerOptionsList.add(backLot);
 
-        final Sprite dogIcon = mMapView.getSpriteFactory().fromAsset("dog-park-24.png");
+        final Icon dogIcon = mMapView.getIconFactory().fromAsset("dog-park-24.png");
         final MarkerOptions cheeseRoom = generateMarker("Cheese Room", "The only air conditioned room on the property", dogIcon, 38.531577, -122.010646);
         markerOptionsList.add(cheeseRoom);
 
         List<Marker> markers = mMapView.addMarkers(markerOptionsList);
     }
 
-    private MarkerOptions generateMarker(String title, String snippet, Sprite icon, double lat, double lng) {
+    private MarkerOptions generateMarker(String title, String snippet, Icon icon, double lat, double lng) {
         return new MarkerOptions()
                 .position(new LatLng(lat, lng))
                 .title(title)

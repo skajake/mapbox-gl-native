@@ -26,6 +26,7 @@
     <string name="action_gps">Toggle GPS location</string>
     <string name="action_user_location_tracking">User location tracking</string>
     <string name="action_compass">Toggle compass</string>
+    <string name="action_custom_layer">Custom Layer</string>
     <string name="action_debug">Cycle map debug options</string>
     <string name="action_point_annotations">Toggle point annotations</string>
     <string name="action_info_window_adapter">InfoWindow Adapter</string>
@@ -42,9 +43,9 @@
     <string name="action_visible_bounds_explanation">Center map around 2 markers</string>
     <string name="action_remove_polylines">Remove polylines</string>
 
+    <string name="button_camera_move">Move</string>
+    <string name="button_camera_ease">Ease</string>
     <string name="button_camera_animate">Animate</string>
-    <string name="button_camera_animate_callback">Callback</string>
-    <string name="button_camera_animate_duration">Duration</string>
 
     <string name="label_fps">FPS:</string>
 
